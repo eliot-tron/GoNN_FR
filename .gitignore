@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 data/
+data
 data_augmented/
 build/
 develop-eggs/
@@ -95,7 +96,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-py313/
+py313
 
 # Spyder project settings
 .spyderproject
