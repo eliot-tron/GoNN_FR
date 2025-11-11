@@ -23,8 +23,9 @@ class GeometricModel(object):
     ) -> None:
         """
             If diff_method=``legacy``, uses torch.autograd.functional.jacobian.
-                Warning: slower and memory expansive.
             relu_optim (Boolean): Optimization of the computation if using only ReLU in the model.
+
+            .. warning: ``legacy`` mode is slower and more memory expansive.
         """
 
         if task not in get_args(_TASKTYPES): 
@@ -93,7 +94,7 @@ class GeometricModel(object):
         eval_point: torch.Tensor,
         create_graph: bool=False,
     ) -> torch.Tensor:
-        """Function computing the matrix ∂_l p_a 
+        """Function computing the matrix :math:`∂_l p_a`.
 
         Args:
             eval_point (torch.Tensor):
@@ -103,8 +104,7 @@ class GeometricModel(object):
                 Only active when `legacy` is ``True``.
 
         Returns:
-            torch.Tensor:
-                tensor ∂_l p_a with dimensions (bs, a, l)
+            torch.Tensor: tensor :math:`∂_l p_a` with dimensions (bs, a, l)
         """
 
         if self.verbose:
@@ -137,7 +137,7 @@ class GeometricModel(object):
         eval_point: torch.Tensor,
         create_graph: bool=False,
     ) -> torch.Tensor:
-        """Function computing the matrix ∂_l s_a 
+        """Function computing the matrix :math:`∂_l s_a`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
@@ -146,7 +146,7 @@ class GeometricModel(object):
                 computed in a differentiable manner. Only active when `legacy` is ``True``.
 
         Returns:
-            torch.Tensor: tensor ∂_l s_a with dimensions (bs, a, l)
+            torch.Tensor: tensor :math:`∂_l s_a` with dimensions (bs, a, l)
         """
         if self.task != "classification":
             raise NotImplementedError("jac_score only implemented for classification tasks.")
@@ -189,11 +189,11 @@ class GeometricModel(object):
                 which the expression is evaluated.
             create_graph (bool, optional): If ``True``, the Jacobian will be
                 computed in a differentiable manner. Only used if self.diff_method = "legacy"
-            regularisation (bool, optional): If ``True``, ε is added to the kernel directions
+            regularisation (bool, optional): If ``True``, :math:`ε` is added to the kernel directions
                 of G in order to have a full rank metric.
 
         Returns:
-            torch.Tensor: tensor g_ij with dimensions (bs, i, j).
+            torch.Tensor: tensor :math:`g_ij` with dimensions (bs, i, j).
         """
         
         if self.task == "classification":
@@ -229,7 +229,7 @@ class GeometricModel(object):
         eval_point: torch.Tensor,
         method: str='func', # 'relu_optim', 'double_jac', 'torch_hessian'
     ) -> torch.Tensor:
-        """Function computing H(p_a)∂p_b 
+        """Function computing :math:`H(p_a)∂p_b`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
@@ -239,7 +239,7 @@ class GeometricModel(object):
                 - torch_hessian: uses torch.autograd.functional.hessian (less slow). (Only in self.diff_method=legacy).
 
         Returns:
-            torch.Tensor: Tensor (H(p_a)∂p_b)_l with dimensions (bs, a,b,l).
+            torch.Tensor: Tensor :math:`(H(p_a)∂p_b)_l` with dimensions (bs, a,b,l).
         """
 
         if self.relu_optim:
@@ -303,14 +303,14 @@ class GeometricModel(object):
         eval_point: torch.Tensor,
         # approximation: bool=False,
     ) -> torch.Tensor:
-        """Function computing [∂p_a, ∂p_b] = H(p_b)∂p_a - H(p_a)∂p_b
+        """Function computing :math:`[∂p_a, ∂p_b] = H(p_b)∂p_a - H(p_a)∂p_b`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor [∂p_a, ∂p_b]_l with dimensions (bs, a,b,l)
+            torch.Tensor: Tensor :math:`[∂p_a, ∂p_b]_l` with dimensions (bs, a,b,l)
         """
 
         if self.task != "classification":
@@ -328,14 +328,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Function computing ∂_i(∇p_a^t ∇p_b).
+        """Function computing :math:`∂_i(∇p_a^t ∇p_b)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor ∂_i(∇p_a^t ∇p_b) with dimensions (bs, a, b, i).
+            torch.Tensor: Tensor :math:`∂_i(∇p_a^t ∇p_b)` with dimensions (bs, a, b, i).
         """
 
         H_grad = self.hessian_gradproba(eval_point)
@@ -346,7 +346,7 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Function computing ∂_k G_{i,j}.
+        """Function computing :math:`∂_k G_{i,j}`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
@@ -393,14 +393,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Function computing the Christoffel symbols Γ_{i,j}^k.
+        """Function computing the Christoffel symbols :math:`Γ_{i,j}^k`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor Γ_{i,j}^k with dimensions (bs, i, j, k).
+            torch.Tensor: Tensor :math:`Γ_{i,j}^k` with dimensions (bs, i, j, k).
         """
         dG = self.jac_metric(eval_point)
         G = self.DIM(eval_point)
@@ -574,14 +574,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Function computing 〈∇p_a, [∇p_b, ∇p_c]〉
+        """Function computing :math:`⟨∇p_a, [∇p_b, ∇p_c]⟩`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor 〈∇p_a, [∇p_b, ∇p_c]〉 with dimensions (bs, a, b, c)
+            torch.Tensor: Tensor :math:`⟨∇p_a, [∇p_b, ∇p_c]⟩` with dimensions (bs, a, b, c)
         """
 
         G = self.DIM(eval_point)
@@ -594,14 +594,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Function computing ∇p_a(G_x) = J(s)^T A_a J(s).
+        """Function computing :math:`∇p_a(G_x) = J(s)^t A_a J(s)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor ∇p_a(G_x)_kl with dimensions (bs, a, k, l)
+            torch.Tensor: Tensor :math:`∇p_a(G_x)_kl` with dimensions (bs, a, k, l)
         """
 
         if self.task != "classification":
@@ -625,14 +625,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Function computing ∇p_a〈∇p_b, ∇p_c〉
+        """Function computing :math:`∇p_a⟨∇p_b, ∇p_c⟩`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the 
             input space at which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor ∇p_a〈∇p_b, ∇p_c〉with dimensions (bs, a, b, c)
+            torch.Tensor: Tensor :math:`∇p_a⟨∇p_b, ∇p_c⟩` with dimensions (bs, a, b, c)
         """
 
         if self.task != "classification":
@@ -661,14 +661,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Function computing ⟨∇_(e_a) e_b, e_c⟩ with e_a = ∇p_a using Koszul formula.
+        """Function computing :math:`⟨∇_(e_a) e_b, e_c⟩` with :math:`e_a = ∇p_a` using Koszul formula.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor ⟨∇_(e_a) e_b, e_c⟩ with dimensions (bs, a, b, c)
+            torch.Tensor: Tensor :math:`⟨∇_(e_a) e_b, e_c⟩` with dimensions (bs, a, b, c)
         """
         
         elmt_1 = self.grad_ang_grad(eval_point)
@@ -680,14 +680,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute the connection form ω(e_k) on the basis e_k = ∇p_k.
+        """Compute the connection form :math:`ω(e_k)` on the basis :math:`e_k = ∇p_k`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor ω^i_j(e_k) with dimensions (bs, i, j, k) 
+            torch.Tensor: Tensor :math:`ω^i_j(e_k)` with dimensions (bs, i, j, k) 
         """
         
         C = self.ang_connection(eval_point)
@@ -720,7 +720,7 @@ class GeometricModel(object):
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor ∂_l ω^i_j(e_k) with dimensions (bs, i, j, k, l)
+            torch.Tensor: Tensor :math:`∂_l ω^i_j(e_k)` with dimensions (bs, i, j, k, l)
         """
 
         if self.diff_method == "functorch":
@@ -745,14 +745,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute ω^i_j([e_a, e_b])
+        """Compute :math:`ω^i_j([e_a, e_b])`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor ω^i_j([e_a, e_b]) with dimensions (bs, i, j, a, b).
+            torch.Tensor: Tensor :math:`ω^i_j([e_a, e_b])` with dimensions (bs, i, j, a, b).
         """
         
         if self.task != "classification":
@@ -777,14 +777,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute e_a (H(p_b) ∇p_c)
+        """Compute :math:`e_a (H(p_b) ∇p_c)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor e_a (H(p_b) ∇p_c)_l with dimension (bs, a, b, c, l)
+            torch.Tensor: Tensor :math:`e_a (H(p_b) ∇p_c)_l` with dimension (bs, a, b, c, l)
         """
 
         if self.task != "classification":
@@ -819,14 +819,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute e_a (e_b ⟨e_c, e_d⟩)
+        """Compute :math:`e_a (e_b ⟨e_c, e_d⟩)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor e_a (e_b ⟨e_c, e_d⟩) with dimensions (bs, a, b, c, d).
+            torch.Tensor: Tensor :math:`e_a (e_b ⟨e_c, e_d⟩)` with dimensions (bs, a, b, c, d).
         """
 
         if self.task != "classification":
@@ -896,14 +896,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute e_a (⟨e_b, [e_c, e_d]⟩)
+        """Compute :math:`e_a (⟨e_b, [e_c, e_d]⟩)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor e_a (⟨e_b, [e_c, e_d]⟩) with dimensions (bs, a, b, c, d).
+            torch.Tensor: Tensor :math:`e_a (⟨e_b, [e_c, e_d]⟩)` with dimensions (bs, a, b, c, d).
         """
 
         J_p = self.jac_proba(eval_point)
@@ -925,16 +925,24 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute e_a (⟨∇_{e_b} e_c, e_d⟩)
-        It uses the Koszul formula 2 e_a (⟨∇_{e_b} e_c, e_d⟩) =
-        e_a (e_b ⟨e_c, e_d⟩ + e_c ⟨e_d, e_b⟩ - e_d ⟨e_b, e_c⟩ - ⟨e_b, [e_c, e_d]⟩ + ⟨e_c, [e_d, e_b]⟩ + ⟨e_d, [e_b, e_c]⟩).
+        """Compute :math:`e_a (⟨∇_{e_b} e_c, e_d⟩)`.
+
+        It uses the Koszul formula:
+        
+        .. math::
+            :nowrap:
+
+            \\begin{multline*} 
+            2 e_a (⟨∇_{e_b} e_c, e_d⟩) = e_a (e_b ⟨e_c, e_d⟩ + e_c ⟨e_d, e_b⟩ - e_d ⟨e_b, e_c⟩ \\\\
+            - ⟨e_b, [e_c, e_d]⟩ + ⟨e_c, [e_d, e_b]⟩ + ⟨e_d, [e_b, e_c]⟩).
+            \\end{multline*}
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor e_a (⟨∇_{e_b} e_c, e_d⟩) with dimensions (bs, a, b, c, d).
+            torch.Tensor: Tensor :math:`e_a (⟨∇_{e_b} e_c, e_d⟩)` with dimensions (bs, a, b, c, d).
         """
 
         elmt_1 = self.grad_grad_ang(eval_point)
@@ -951,15 +959,19 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Computes e_a(ω^i_j(e_b)).
-        It uses the formula e_a (⟨∇_{e_b} e_c, e_d⟩) = ∑_i e_a (ω_c^i(e_b))⟨e_i,e_d⟩ + ∑_i ω_c^i(e_b) e_a(⟨e_i,e_d⟩).
+        """Compute :math:`e_a(ω^i_j(e_b))`.
+
+        It uses the formula:
+
+        .. math::
+            e_a (⟨∇_{e_b} e_c, e_d⟩) = \\sum_i e_a (ω_c^i(e_b))⟨e_i,e_d⟩ + \\sum_i ω_c^i(e_b) e_a(⟨e_i,e_d⟩).
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor e_a(ω^i_j(e_b)) with dimensions (bs, i, j, a, b).
+            torch.Tensor: Tensor :math:`e_a(ω^i_j(e_b))` with dimensions (bs, i, j, a, b).
         """
 
         grad_connection_ang = self.grad_connection_ang(eval_point)
@@ -983,15 +995,19 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute the exterior derivative of the connection form: dω^i_j(e_a, e_b).
-        It uses the formula dω^i_j(X,Y) = Xω^i_j(Y) - Yω^i_j(X) - ω^i_j([X,Y]).
+        """Compute the exterior derivative of the connection form: :math:`dω^i_j(e_a, e_b)`.
+
+        It uses the formula:
+
+        .. math::
+            dω^i_j(X,Y) = Xω^i_j(Y) - Yω^i_j(X) - ω^i_j([X,Y]).
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor dω^i_j(e_a, e_b) with dimensions (bs, i, j, a, b).
+            torch.Tensor: Tensor :math:`dω^i_j(e_a, e_b)` with dimensions (bs, i, j, a, b).
         """
         
         # J_omega = self.jac_connection(eval_point)
@@ -1014,14 +1030,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute the exterior product of the connection forms: ∑_k ω^i_k(e_a) ∧ ω^k_j(e_b).
+        """Compute the exterior product of the connection forms: :math:`\\sum_k ω^i_k(e_a) ∧ ω^k_j(e_b)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor (∑_k ω^i_k(e_a) ∧ ω^k_j(e_b)) with dimensions (bs, i, j, a, b).
+            torch.Tensor: Tensor :math:`(\\sum_k ω^i_k(e_a) ∧ ω^k_j(e_b))` with dimensions (bs, i, j, a, b).
         """
         
         omega = self.connection_form(eval_point)
@@ -1034,14 +1050,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute the curvature forms Ω^i_j(e_a, e_b).
+        """Compute the curvature forms :math:`Ω^i_j(e_a, e_b)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor (Ω^i_j(e_a, e_b)) with dimensions (bs, i, j, a, b)
+            torch.Tensor: Tensor :math:`(Ω^i_j(e_a, e_b))` with dimensions (bs, i, j, a, b)
         """
 
         domega = self.d_connection_form(eval_point)
@@ -1053,14 +1069,14 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
         ) -> torch.Tensor:
-        """Compute the curvature forms Ω^i_j(E_a, E_b) with (E_k) an Ortho Normal Basis.
+        """Compute the curvature forms :math:`Ω^i_j(E_a, E_b)` with (E_k) an Ortho Normal Basis.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor (Ω^i_j(E_a, E_b)) with dimensions (bs, i, j, a, b)
+            torch.Tensor: Tensor :math:`(Ω^i_j(E_a, E_b))` with dimensions (bs, i, j, a, b)
         """
         J_p = self.jac_proba(eval_point)
         G_p = self.DIM(eval_point)
@@ -1076,14 +1092,14 @@ class GeometricModel(object):
         eval_point: torch.Tensor,
         ) -> torch.Tensor:
 
-        """Compute the Rici curvature form Ric(e_a, e_b).
+        """Compute the Rici curvature form :math:`Ric(e_a, e_b)`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor (Ric(e_a, e_b)) with dimensions (bs, a, b)
+            torch.Tensor: Tensor :math:`(Ric(e_a, e_b))` with dimensions (bs, a, b)
         """
 
         raise NotImplementedError()
@@ -1095,14 +1111,14 @@ class GeometricModel(object):
         eval_point: torch.Tensor,
         ) -> torch.Tensor:
 
-        """Compute the Scalar curvature form S.
+        """Compute the Scalar curvature form :math:`S`.
 
         Args:
             eval_point (torch.Tensor): Batch of points of the input space at
                 which the expression is evaluated.
 
         Returns:
-            torch.Tensor: Tensor (S) with dimensions (bs)
+            torch.Tensor: Tensor :math:`(S)` with dimensions (bs)
         """
 
         Omega = self.curvature_form_ONB(eval_point)

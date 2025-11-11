@@ -5,7 +5,10 @@ def orthonormalization(
     metric: torch.Tensor,
     ) -> torch.Tensor:
     """Compute the orthonormalization of the given set of vectors according to the given [scalar_products]
-    with the Gram-Schmidt algorithm [warning: not very stable].
+    with the Gram-Schmidt algorithm 
+
+    .. warning:: Not very stable.
+
     Args:
         basis (torch.Tensor): Batch of basis (..., a, j)
         scalar_products (torch.Tensor): Batch of scalar products (..., i, j)
