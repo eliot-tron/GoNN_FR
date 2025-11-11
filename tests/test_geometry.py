@@ -1,6 +1,6 @@
 import torch
 import pytest
-from geometry import GeometricModel
+from GoNN_FR.geometry import GeometricModel
 
 network = torch.nn.Sequential(torch.nn.Linear(2,16), torch.nn.ReLU(), torch.nn.Linear(16, 2))
 @pytest.fixture

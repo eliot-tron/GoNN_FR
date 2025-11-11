@@ -7,7 +7,7 @@ from tqdm import tqdm
 # from scipy.integrate import solve_ivp
 from torchdiffeq import odeint, odeint_event
 from torch.func import vmap, jacrev, grad
-from utils import orthonormalization
+from GoNN_FR.utils import orthonormalization
 
 _TASKTYPES = Literal["classification", "regression"]
 _DIFFTYPES = Literal["functorch", "legacy", "geomstat"]
@@ -69,7 +69,7 @@ class GeometricModel(object):
             
             return self.network(eval_point)
         else:
-            raise NotADirectoryError("Score only defined for classification tasks.")
+            raise NotImplementedError("Score only defined for classification tasks.")
 
     def grad_proba(
         self,
@@ -96,13 +96,15 @@ class GeometricModel(object):
         """Function computing the matrix ∂_l p_a 
 
         Args:
-            eval_point (torch.Tensor): Batch of points of the input space at
-                which the expression is evaluated.
-            create_graph (bool, optional): If ``True``, the Jacobian will be
-                computed in a differentiable manner. Only active when `legacy` is ``True``.
+            eval_point (torch.Tensor):
+                Batch of points of the input space at which the expression is evaluated.
+            create_graph (bool, optional):
+                If ``True``, the Jacobian will be computed in a differentiable manner.
+                Only active when `legacy` is ``True``.
 
         Returns:
-            torch.Tensor: tensor ∂_l p_a with dimensions (bs, a, l)
+            torch.Tensor:
+                tensor ∂_l p_a with dimensions (bs, a, l)
         """
 
         if self.verbose:

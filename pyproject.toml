@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "GoNN_FR"
+version = "0.0.1"
+authors = [
+  { name="Eliot Tron", email="eliottron@gmail.com" },
+]
+description = "The Geometry of Neural Networks: a Riemannian Foliation Perspective on Robustness."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+	"torch>=2.6.0",
+	"torchvision>=0.21.0",
+	"torchdiffeq>=0.2.5",
+	"tqdm>=4.67.1",
+	"numpy>=2.1.2",
+	"matplotlib>=3.10.1",
+]
+
+[project.urls]
+Homepage = "https://codeberg.org/eliot-tron/GoNN_FR"
+Issues = "https://codeberg.org/eliot-tron/GoNN_FR/issues"

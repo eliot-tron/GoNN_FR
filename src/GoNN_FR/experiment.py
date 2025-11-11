@@ -8,16 +8,16 @@ from matplotlib import cm, colors, pyplot as plt
 from tqdm import tqdm
 from abc import ABC, abstractmethod
 
-from circle_datasets import CircleDataset
-from circle_networks import circle_net
-from geometry import GeometricModel
+from GoNN_FR.circle_datasets import CircleDataset
+from GoNN_FR.circle_networks import circle_net
+from GoNN_FR.geometry import GeometricModel
 from torchvision import datasets 
 from torchdiffeq import odeint
 
-from xor3d_datasets import Xor3dDataset
-from xor3d_networks import xor3d_net
-from xor_datasets import XorDataset
-from xor_networks import xor_net
+from GoNN_FR.xor3d_datasets import Xor3dDataset
+from GoNN_FR.xor3d_networks import xor3d_net
+from GoNN_FR.xor_datasets import XorDataset
+from GoNN_FR.xor_networks import xor_net
 from autoattack import AutoAttack
 
 # TODO: break into multiple files.
