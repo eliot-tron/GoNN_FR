@@ -1,5 +1,5 @@
 """Module implementing tools to examine the geometry of a model."""
-from typing import Literal, Optional, get_args
+from typing import Literal, get_args
 import torch
 from torch import nn
 from torch.autograd.functional import jacobian, hessian
@@ -453,7 +453,7 @@ class GeometricModel(object):
         self,
         eval_point: torch.Tensor,
         init_velocity: torch.Tensor,
-        euclidean_budget: Optional[float]=None,
+        euclidean_budget: float | None = None,
         full_path: bool=False,
         project_leaf: bool=True,
     ) -> torch.Tensor:

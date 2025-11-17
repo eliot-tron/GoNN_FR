@@ -8,7 +8,7 @@ It implements the basic blocks of the framework described in the manuscript.
 Install GoNN_FR with pip:
 
 ```bash
-  pip install GoNN_FR
+  python -m pip install GoNN_FR
 ```
     
 ## Usage/Examples
@@ -22,7 +22,7 @@ import geometry from GoNN_FR
 
 ## Documentation
 
-[Documentation](https://linktodocumentation)
+[Documentation](./docs/_build/html/GoNN_FR.html)
 
 
 ## Authors

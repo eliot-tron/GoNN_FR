@@ -1,30 +1,53 @@
+"""Module for managing experiments and their parameters."""
 from functools import partial
 from os import makedirs, path
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Union
 from torch import nn
 import torch
 from matplotlib import cm, colors, pyplot as plt
 from tqdm import tqdm
 from abc import ABC, abstractmethod
 
-from GoNN_FR.circle_datasets import CircleDataset
-from GoNN_FR.circle_networks import circle_net
+from GoNN_FR.networks import xor_net, xor3d_net, circle_net, mnist_medium_cnn, cifar_medium_cnn
 from GoNN_FR.geometry import GeometricModel
 from torchvision import datasets 
 from torchdiffeq import odeint
 
-from GoNN_FR.xor3d_datasets import Xor3dDataset
-from GoNN_FR.xor3d_networks import xor3d_net
-from GoNN_FR.xor_datasets import XorDataset
-from GoNN_FR.xor_networks import xor_net
+from GoNN_FR.datasets import XorDataset, Xor3dDataset, CircleDataset 
 from autoattack import AutoAttack
 
 # TODO: break into multiple files.
 
 class Experiment(ABC):
 
-    """Class for storing the values of my experiments. """
+    """Class storing the values of my experiments.
+
+    This abstract class centralizes the parameters and objects required to run an experiment,
+    including:
+    - The dataset used
+    - Neural networks
+    - Training and evaluation parameters
+    - Non-linearity functions
+    - Input points and input spaces
+
+    Attributes:
+        dataset_name: Name of the dataset used for the experiment.
+        network: Main neural network used for the experiment.
+        network_score: Neural network before SoftMax.
+        checkpoint_path: Path to the model checkpoint.
+        adversarial_budget: Budget allocated for adversarial attacks if used.
+        dtype: Data type used for tensors.
+        device: Device (CPU/GPU) on which the experiment runs.
+        num_samples: Number of samples used in the experiment.
+        restrict_to_class: Specific class to restrict the experiment to.
+        input_space: Input data space for the experiment.
+        random: Boolean indicating if the experiment uses random data.
+        geo_model: Geometric model associated with the network.
+        non_linearity: Name of the non-linearity used in the network.
+        nl_function: Non-linearity function used in the experiment.
+
+    """
 
     def __init__(self,
                  dataset_name: str,
@@ -34,13 +57,33 @@ class Experiment(ABC):
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: Optional[int]=None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]]=None,
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
-                 network: Optional[nn.Module]=None,
-                 network_score: Optional[nn.Module]=None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None,
                  ):
-        """TODO: to be defined. """
+        """Initializes a new experiment with the provided parameters.
+
+        Args:
+            dataset_name (str): Name of the dataset used.
+            non_linearity (str): Name of non-linearity used.
+            adversarial_budget (float): Budget allocated for adversarial attacks.
+            dtype (torch.dtype): Data type used for tensors.
+            device (torch.DeviceObjType): Device (CPU/GPU) on which the experiment runs.
+            num_samples (int): Number of samples used.
+            random (bool): Boolean indicating if the experiment must be randomized.
+            restrict_to_class (int, optional): Specific class to restrict the experiment to.
+                Defaults to None.
+            input_space (Dict[str, datasets.VisionDataset], optional): Input data space for the experiment.
+                Defaults to None.
+            checkpoint_path (str): Path to the model checkpoint.
+                Defaults to an empty string.
+            network (nn.Module, optional): Main neural network used for the experiment.
+                Defaults to None.
+            network_score (nn.Module, optional): Neural network used for scoring.
+                Defaults to None.
+        """
         self.dataset_name = dataset_name
         self.network = network 
         self.network_score = network_score
@@ -80,7 +123,7 @@ class Experiment(ABC):
         with open(saving_path, 'w') as file:
             file.write(str(self))
 
-    def get_output_dimension(self):
+    def get_output_dimension(self): # TODO: fix unsqueeze + find more efficient way.
         return self.network(self.input_points[0].unsqueeze(0)).shape[-1]
 
     def get_input_dimension(self):
@@ -89,10 +132,8 @@ class Experiment(ABC):
     def get_number_of_classes(self):
         return len(self.input_space['train'].classes)
 
-    def init_geo_model(self):
-        """TODO: Docstring for init_geo_model.
-
-        :returns: None
+    def init_geo_model(self):  # TODO: why a separate function?
+        """ Initialize self.geo_model with the associated GeometricModel.
 
         """
         self.geo_model = GeometricModel(
@@ -111,7 +152,7 @@ class Experiment(ABC):
                 self.inverse_nl_function = lambda y: nn.functional.relu(y) # todo: what if 0 ? How do I solve the range problem? 
                 print('WARNING: ReLU inverse is not well defined.')
             elif self.non_linearity == 'GELU':
-                if self.dataset_name not in ['XOR', 'MNIST']: print('WARNING: GELU is (for now) only implemented with the weights of the ReLU network.')
+                # if self.dataset_name not in ['XOR', 'MNIST']: print('WARNING: GELU is (for now) only implemented with the weights of the ReLU network.')
                 self.nl_function = nn.GELU()
                 self.inverse_nl_function = NotImplemented
             elif self.non_linearity == 'LeakyReLU':
@@ -295,8 +336,8 @@ class Experiment(ABC):
         axes,
         output_dir: Union[str, Path]='output/',
         singular_values: bool=False,
-        face_color: Optional[str]=None,
-        positions: Optional[list[float]]=None,
+        face_color: str | None = None,
+        positions: list[float] | None = None,
         box_width: float=1,
     ) -> None:
         """Plot the mean ordered eigenvalues of the Fisher Information Matrix, also called the Local Data Matrix."""
@@ -333,9 +374,9 @@ class Experiment(ABC):
         axes,
         output_dir: Union[str, Path]='output/',
         singular_values: bool=False,
-        known_rank: Optional[int]=None,
-        face_color: Optional[str]=None,
-        positions: Optional[list[float]]=None,
+        known_rank: int | None = None,
+        face_color: str | None = None,
+        positions: list[float] | None = None,
         box_width: float=1,
     ) -> None:
         """Plot the mean ordered eigenvalues of the Fisher Information Matrix, also called the Local Data Matrix."""
@@ -403,7 +444,7 @@ class Experiment(ABC):
     @abstractmethod
     def plot_foliation(self,
                        transverse: bool=True,
-                       nleaves: Optional[int]=None,
+                       nleaves: int | None = None,
                        ) -> None:
         """Plots the kernel / transverse foliation associated to
         the Fisher Information Matrix.
@@ -455,7 +496,7 @@ class Experiment(ABC):
 
 
     def plot_geodesic_layer(self,
-                       input_points: Optional[torch.Tensor]=None,
+                       input_points: torch.Tensor | None = None,
                        ) -> None:
         if input_points is None:
             input_points = self.input_points
@@ -507,7 +548,7 @@ class Experiment(ABC):
             plt.show()
 
     def plot_DIM_layer(self,
-                       input_points: Optional[torch.Tensor]=None,
+                       input_points: torch.Tensor | None = None,
                        ) -> None:
         if input_points is None:
             input_points = self.input_points
@@ -708,11 +749,12 @@ class XORExp(Experiment):
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None,
+                 ):
         super().__init__("XOR", 
                          non_linearity,
                          adversarial_budget,
@@ -755,7 +797,7 @@ class XORExp(Experiment):
 
     def plot_foliation(self,
                        transverse: bool=True,
-                       nleaves: Optional[int]=None,
+                       nleaves: int | None = None,
                        ) -> None:
         """Plots the kernel / transverse foliation associated to
         the Fisher Information Matrix.
@@ -795,11 +837,12 @@ class XOR3DExp(Experiment):
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None,
+                 ):
         super().__init__("XOR3D", 
                          non_linearity,
                          adversarial_budget,
@@ -837,7 +880,7 @@ class XOR3DExp(Experiment):
 
     def plot_foliation(self,
                        transverse: bool=True,
-                       nleaves: Optional[int]=None,
+                       nleaves: int | None = None,
                        ) -> None:
         """Plots the kernel / transverse foliation associated to
         the Fisher Information Matrix.
@@ -887,11 +930,11 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
+                 restrict_to_class: int | None = None, 
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None,
                  nclasses: int=2,
                  ):
         self.nclasses = nclasses
@@ -929,7 +972,7 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
 
     def plot_foliation(self,
                        transverse: bool=True,
-                       nleaves: Optional[int]=None,
+                       nleaves: int | None = None,
                        ) -> None:
         """Plots the kernel / transverse foliation associated to
         the Fisher Information Matrix.
@@ -979,11 +1022,12 @@ class MNISTExp(Experiment):
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
-                 checkpoint_path: Optional[str] = None,
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
+                 checkpoint_path: str | None = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None,
+                 ):
         super().__init__("MNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1013,10 +1057,10 @@ class MNISTExp(Experiment):
 
     def init_networks(self):
         maxpool = (self.pool == 'maxpool')
-        self.network = mnist_networks.medium_cnn(self.checkpoint_path,
+        self.network = mnist_medium_cnn(self.checkpoint_path,
                                                  non_linearity=self.nl_function,
                                                  maxpool=maxpool)
-        self.network_score = mnist_networks.medium_cnn(self.checkpoint_path,
+        self.network_score = mnist_medium_cnn(self.checkpoint_path,
                                                        score=True,
                                                        non_linearity=self.nl_function,
                                                        maxpool=maxpool)
@@ -1034,11 +1078,11 @@ class CIFAR10Exp(Experiment):
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
-                 checkpoint_path: Optional[str] = None,
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
+                 checkpoint_path: str | None = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("CIFAR10", 
                          non_linearity,
                          adversarial_budget,
@@ -1073,8 +1117,8 @@ class CIFAR10Exp(Experiment):
 
     def init_networks(self):
         maxpool = (self.pool == 'maxpool')
-        self.network = cifar10_networks.medium_cnn(self.checkpoint_path, maxpool=maxpool)
-        self.network_score = cifar10_networks.medium_cnn(self.checkpoint_path, score=True, maxpool=maxpool)
+        self.network = cifar_medium_cnn(self.checkpoint_path, maxpool=maxpool)
+        self.network_score = cifar_medium_cnn(self.checkpoint_path, score=True, maxpool=maxpool)
 
         return super().init_networks()
 
@@ -1089,11 +1133,11 @@ class LettersExp(Experiment):
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
-                 checkpoint_path: Optional[str] = None,
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
+                 checkpoint_path: str | None = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("Letters", 
                          non_linearity,
                          adversarial_budget,
@@ -1130,11 +1174,11 @@ class FashionMNISTExp(Experiment):
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
-                 checkpoint_path: Optional[str] = None,
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
+                 checkpoint_path: str | None = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("FashionMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1170,11 +1214,11 @@ class KMNISTExp(Experiment):
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
-                 checkpoint_path: Optional[str] = None,
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
+                 checkpoint_path: str | None = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("KMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1210,11 +1254,11 @@ class QMNISTExp(Experiment):
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
-                 checkpoint_path: Optional[str] = None,
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
+                 checkpoint_path: str | None = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("QMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1250,11 +1294,11 @@ class CIFARMNISTExp(Experiment):
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
-                 checkpoint_path: Optional[str] = None,
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
+                 checkpoint_path: str | None = None,
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("CIFARMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1297,11 +1341,11 @@ class NoiseExp(Experiment):
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("Noise", 
                          non_linearity,
                          adversarial_budget,
@@ -1341,11 +1385,11 @@ class AdversarialExp(Experiment):
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: Optional[int] = None,
-                 input_space: Optional[Dict[str, datasets.VisionDataset]] = None,
+                 restrict_to_class: int | None = None,
+                 input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
-                 network: Optional[nn.Module] = None,
-                 network_score: Optional[nn.Module] = None):
+                 network: nn.Module | None = None,
+                 network_score: nn.Module | None = None):
         super().__init__("Adversarial", 
                          non_linearity,
                          adversarial_budget,
