@@ -1,21 +1,27 @@
 """Module for managing experiments and their parameters."""
+from abc import ABC, abstractmethod
 from functools import partial
 from os import makedirs, path
 from pathlib import Path
 from typing import Dict, Union
+
+from autoattack import AutoAttack
+from matplotlib import cm, colors, pyplot as plt
 from torch import nn
 import torch
-from matplotlib import cm, colors, pyplot as plt
-from tqdm import tqdm
-from abc import ABC, abstractmethod
-
-from GoNN_FR.networks import xor_net, xor3d_net, circle_net, mnist_medium_cnn, cifar_medium_cnn
-from GoNN_FR.geometry import GeometricModel
-from torchvision import datasets 
 from torchdiffeq import odeint
+from torchvision import datasets
+from tqdm import tqdm
 
-from GoNN_FR.datasets import XorDataset, Xor3dDataset, CircleDataset 
-from autoattack import AutoAttack
+from GoNN_FR.datasets import CircleDataset, Xor3dDataset, XorDataset
+from GoNN_FR.geometry import GeometricModel
+from GoNN_FR.networks import (
+    cifar_medium_cnn,
+    circle_net,
+    mnist_medium_cnn,
+    xor3d_net,
+    xor_net,
+)
 
 # TODO: break into multiple files.
 
@@ -34,7 +40,6 @@ class Experiment(ABC):
     Attributes:
         dataset_name: Name of the dataset used for the experiment.
         network: Main neural network used for the experiment.
-        network_score: Neural network before SoftMax.
         checkpoint_path: Path to the model checkpoint.
         adversarial_budget: Budget allocated for adversarial attacks if used.
         dtype: Data type used for tensors.
@@ -61,7 +66,6 @@ class Experiment(ABC):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None,
                  ):
         """Initializes a new experiment with the provided parameters.
 
@@ -81,12 +85,8 @@ class Experiment(ABC):
                 Defaults to an empty string.
             network (nn.Module, optional): Main neural network used for the experiment.
                 Defaults to None.
-            network_score (nn.Module, optional): Neural network used for scoring.
-                Defaults to None.
         """
         self.dataset_name = dataset_name
-        self.network = network 
-        self.network_score = network_score
         self.non_linearity = non_linearity
         self.checkpoint_path = checkpoint_path
         self.adversarial_budget = adversarial_budget
@@ -106,8 +106,10 @@ class Experiment(ABC):
         self.init_input_points()
         if self.checkpoint_path == "":
             self.init_checkpoint_path()
-        if self.network is None or self.network_score is None:
+        if network is None:
             self.init_networks()
+        else:
+            self.network = network 
         self.init_geo_model()
     
     def __str__(self) -> str:
@@ -138,7 +140,6 @@ class Experiment(ABC):
         """
         self.geo_model = GeometricModel(
             network=self.network,
-            network_score=self.network_score,
         )
 
     def init_nl_function(self):
@@ -240,7 +241,6 @@ class Experiment(ABC):
                 self.init_networks()
                 self.train_network()
                 self.network = None
-                self.network_score = None
         else:
             print(f"WARNING: self.checkpoint_path is already defined by {self.checkpoint_path}, doing nothing.")
 
@@ -301,29 +301,25 @@ class Experiment(ABC):
             self.input_points = torch.rand_like(self.input_points).to(self.device).to(self.dtype)
         if self.adversarial_budget > 0:
             print("Computing the adversarial attacks...")
-            adversary = AutoAttack(self.network_score, norm='L2', eps=self.adversarial_budget, version='custom', attacks_to_run=['apgd-ce'], device=self.device, verbose=False)
-            labels = torch.argmax(self.network_score(self.input_points), dim=-1)
+            adversary = AutoAttack(self.geo_model.score, norm='L2', eps=self.adversarial_budget, version='custom', attacks_to_run=['apgd-ce'], device=self.device, verbose=False)
+            labels = torch.argmax(self.geo_model.proba(self.input_points), dim=-1)
             attacked_points = adversary.run_standard_evaluation(self.input_points.clone(), labels, bs=250)
             self.input_points = attacked_points #.to(self.dtype)
             print("...done!")
 
     @abstractmethod
     def init_networks(self):
-        """Initializes the value of self.network and self.network_score based on the string
-        self.dataset_name.
-
-        :arg1: TODO
-        :returns: TODO
+        """Initializes the value of self.network based on the string
+        self.dataset_name. It must be redefined for each child based
+        on the dataset.
 
         """
-        if isinstance(self.network, torch.nn.Module) and isinstance(self.network_score, torch.nn.Module):
+        if isinstance(self.network, torch.nn.Module):
             self.network = self.network.to(self.device).to(self.dtype)
-            self.network_score = self.network_score.to(self.device).to(self.dtype)
 
             if torch.cuda.device_count() > 1 and self.device.type == 'cuda':
                 print(f"Let's use {torch.cuda.device_count()} GPUs!")
                 # self.network = nn.DataParallel(self.network)
-                # self.network_score = nn.DataParallel(self.network_score)
 
             print(f"network to {self.device} as {self.dtype} done")
         elif self.dataset_name in ['Noise', 'Adversarial']:
@@ -340,20 +336,20 @@ class Experiment(ABC):
         positions: list[float] | None = None,
         box_width: float=1,
     ) -> None:
-        """Plot the mean ordered eigenvalues of the Fisher Information Matrix, also called the Local Data Matrix."""
+        """Plot the mean ordered eigenvalues of the Data Information Matrix."""
 
         if not path.isdir(output_dir):
             makedirs(output_dir)
        
-        local_data_matrix = self.geo_model.local_data_matrix(self.input_points)
+        DIM = self.geo_model.DIM(self.input_points)
 
-        number_of_batch = local_data_matrix.shape[0]
+        number_of_batch = DIM.shape[0]
 
         if face_color is None:
             face_color = 'white'
 
 
-        traces = torch.einsum('...ii', local_data_matrix).log10().detach().cpu()
+        traces = torch.einsum('...ii', DIM).log10().detach().cpu()
 
         torch.save(traces, path.join(output_dir, f"experiment_{self.dataset_name}_traces.pt"))
 
@@ -379,20 +375,20 @@ class Experiment(ABC):
         positions: list[float] | None = None,
         box_width: float=1,
     ) -> None:
-        """Plot the mean ordered eigenvalues of the Fisher Information Matrix, also called the Local Data Matrix."""
+        """Plot the mean ordered eigenvalues of the Data Information Matrix."""
 
         if not path.isdir(output_dir):
             makedirs(output_dir)
        
-        local_data_matrix = self.geo_model.local_data_matrix(self.input_points)
+        DIM = self.geo_model.DIM(self.input_points)
 
-        number_of_batch = local_data_matrix.shape[0]
+        number_of_batch = DIM.shape[0]
 
 
         if known_rank is None:
-            known_rank = min(local_data_matrix.shape[1:])
+            known_rank = min(DIM.shape[1:])
         else:
-            known_rank = min(known_rank, min(local_data_matrix.shape[1:]) - 1)
+            known_rank = min(known_rank, min(DIM.shape[1:]) - 1)
             
         if face_color is None:
             face_color = 'white'
@@ -402,17 +398,17 @@ class Experiment(ABC):
 
         # TODO: implement a faster computation of the topk eigenvalues <15-04-24> #
         if singular_values:
-            eigenvalues = torch.linalg.svdvals(local_data_matrix)
+            eigenvalues = torch.linalg.svdvals(DIM)
         else:
             with torch.no_grad():
                 # t0 = time.time()
-                # eigenvalues = torch.linalg.eigvalsh(local_data_matrix) 
+                # eigenvalues = torch.linalg.eigvalsh(DIM) 
                 # t1 = time.time()
                 try:
-                    topk_eigenvalues = torch.lobpcg(local_data_matrix, k=known_rank+1)[0]
+                    topk_eigenvalues = torch.lobpcg(DIM, k=known_rank+1)[0]
                     selected_eigenvalues = topk_eigenvalues.abs().sort(descending=True).values
                 except ValueError:
-                    eigenvalues = torch.linalg.eigvalsh(local_data_matrix).abs().sort(descending=True).values 
+                    eigenvalues = torch.linalg.eigvalsh(DIM).abs().sort(descending=True).values 
                     selected_eigenvalues = eigenvalues.abs().sort(descending=True).values[...,:known_rank + 1]
             # t2 = time.time()
             # print(f"All: {t1-t0}s, topk: {t2-t1}s.")
@@ -509,9 +505,7 @@ class Experiment(ABC):
             init_velocity = torch.tensor([1,0]).to(self.device)
             for i, module in enumerate(children[:-1]):
                 print(f"x = {x[0]}")
-                partial_net = GeometricModel(network=nn.Sequential(*children[i:]),
-                                             network_score=nn.Sequential(*children[i:-1])
-                                             )
+                partial_net = GeometricModel(network=nn.Sequential(*children[i:]))
                 # TODO : init_velocity = df * init_velocity
                 # partial_geodesic = partial_net.geodesic(eval_point=x,
                 #                                         init_velocity=init_velocity,
@@ -558,10 +552,8 @@ class Experiment(ABC):
             x = input_points
             for i, module in enumerate(children[:-1]):
                 print(f"x = {x[0]}")
-                partial_net = GeometricModel(network=nn.Sequential(*children[i:]),
-                                             network_score=nn.Sequential(*children[i:-1])
-                                             )
-                partial_DIM = partial_net.local_data_matrix(x)
+                partial_net = GeometricModel(network=nn.Sequential(*children[i:]))
+                partial_DIM = partial_net.DIM(x)
                 print(f"partial_DIM = \n{partial_DIM[0]}")
                 eigenvalues = torch.linalg.eigvalsh(partial_DIM).abs().sort(descending=True).values 
                 selected_eigenvalues = eigenvalues.abs().sort(descending=True).values
@@ -753,7 +745,6 @@ class XORExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None,
                  ):
         super().__init__("XOR", 
                          non_linearity,
@@ -766,7 +757,7 @@ class XORExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     # def init_checkpoint_path(self):
     #     if self.non_linearity == 'Sigmoid':
@@ -791,7 +782,6 @@ class XORExp(Experiment):
 
     def init_networks(self):
         self.network = xor_net(self.checkpoint_path, non_linearity=self.nl_function)
-        self.network_score = xor_net(self.checkpoint_path, score=True, non_linearity=self.nl_function)
 
         return super().init_networks()
 
@@ -841,7 +831,6 @@ class XOR3DExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None,
                  ):
         super().__init__("XOR3D", 
                          non_linearity,
@@ -854,7 +843,7 @@ class XOR3DExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_checkpoint_path(self):
         if self.non_linearity == 'ReLU':
@@ -874,7 +863,6 @@ class XOR3DExp(Experiment):
 
     def init_networks(self):
         self.network = xor3d_net(self.checkpoint_path, non_linearity=self.nl_function)
-        self.network_score = xor3d_net(self.checkpoint_path, score=True, non_linearity=self.nl_function)
 
         return super().init_networks()
 
@@ -934,7 +922,6 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None,
                  nclasses: int=2,
                  ):
         self.nclasses = nclasses
@@ -949,7 +936,7 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     # def init_checkpoint_path(self):
     #     self.checkpoint_path = f'./checkpoint/deep_circle_net_c{self.nclasses}_{self.non_linearity.lower()}_30.pt'
@@ -966,7 +953,6 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
 
     def init_networks(self):
         self.network = circle_net(self.checkpoint_path, non_linearity=self.nl_function, nclasses=self.nclasses)
-        self.network_score = circle_net(self.checkpoint_path, score=True, non_linearity=self.nl_function, nclasses=self.nclasses)
 
         return super().init_networks()
 
@@ -1026,7 +1012,6 @@ class MNISTExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str | None = None,
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None,
                  ):
         super().__init__("MNIST", 
                          non_linearity,
@@ -1040,7 +1025,7 @@ class MNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_checkpoint_path(self):
         self.checkpoint_path = f'./checkpoint/mnist_medium_cnn_30_{self.pool}_{self.non_linearity}.pt'
@@ -1060,10 +1045,6 @@ class MNISTExp(Experiment):
         self.network = mnist_medium_cnn(self.checkpoint_path,
                                                  non_linearity=self.nl_function,
                                                  maxpool=maxpool)
-        self.network_score = mnist_medium_cnn(self.checkpoint_path,
-                                                       score=True,
-                                                       non_linearity=self.nl_function,
-                                                       maxpool=maxpool)
 
         return super().init_networks()
 
@@ -1082,7 +1063,7 @@ class CIFAR10Exp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str | None = None,
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("CIFAR10", 
                          non_linearity,
                          adversarial_budget,
@@ -1095,7 +1076,7 @@ class CIFAR10Exp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_checkpoint_path(self):
         self.checkpoint_path = f'./checkpoint/cifar10_medium_cnn_30_{self.pool}_{self.non_linearity}_vgg11.pt'
@@ -1118,7 +1099,6 @@ class CIFAR10Exp(Experiment):
     def init_networks(self):
         maxpool = (self.pool == 'maxpool')
         self.network = cifar_medium_cnn(self.checkpoint_path, maxpool=maxpool)
-        self.network_score = cifar_medium_cnn(self.checkpoint_path, score=True, maxpool=maxpool)
 
         return super().init_networks()
 
@@ -1137,7 +1117,7 @@ class LettersExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str | None = None,
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("Letters", 
                          non_linearity,
                          adversarial_budget,
@@ -1150,7 +1130,7 @@ class LettersExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.EMNIST(
@@ -1178,7 +1158,7 @@ class FashionMNISTExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str | None = None,
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("FashionMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1191,7 +1171,7 @@ class FashionMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.FashionMNIST(
@@ -1218,7 +1198,7 @@ class KMNISTExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str | None = None,
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("KMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1231,7 +1211,7 @@ class KMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.KMNIST(
@@ -1258,7 +1238,7 @@ class QMNISTExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str | None = None,
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("QMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1271,7 +1251,7 @@ class QMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.QMNIST(
@@ -1298,7 +1278,7 @@ class CIFARMNISTExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str | None = None,
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("CIFARMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1311,7 +1291,7 @@ class CIFARMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         transform = transforms.Compose(
@@ -1345,7 +1325,7 @@ class NoiseExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("Noise", 
                          non_linearity,
                          adversarial_budget,
@@ -1357,7 +1337,7 @@ class NoiseExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
-                         network_score)
+                         )
 
     def init_checkpoint_path(self):
         raise ValueError(f"{self.dataset_name} cannot have an associated network.")
@@ -1389,7 +1369,7 @@ class AdversarialExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
-                 network_score: nn.Module | None = None):
+                 ):
         super().__init__("Adversarial", 
                          non_linearity,
                          adversarial_budget,
@@ -1401,7 +1381,7 @@ class AdversarialExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network.float(),
-                         network_score.float())
+                         )
         if dtype != torch.float:
             print("WARNING: Adversarial attack only implemented for float32 due to external dependences.")
 

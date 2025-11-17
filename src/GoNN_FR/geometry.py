@@ -1,12 +1,11 @@
 """Module implementing tools to examine the geometry of a model."""
 from typing import Literal, get_args
+
 import torch
 from torch import nn
-from torch.autograd.functional import jacobian, hessian
-from tqdm import tqdm
-# from scipy.integrate import solve_ivp
 from torchdiffeq import odeint, odeint_event
-from torch.func import vmap, jacrev, grad
+from tqdm import tqdm
+
 from GoNN_FR.utils import orthonormalization
 
 _TASKTYPES = Literal["classification", "regression"]
@@ -80,7 +79,7 @@ class GeometricModel(object):
 
         if self.diff_method == "functorch":
             p_i = lambda x: self.network(x)[...,out_index]
-            grad_proba = vmap(grad(p_i))(eval_point)
+            grad_proba = torch.vmap(torch.func.grad(p_i))(eval_point)
         elif self.diff_method == "legacy":
             j = self.jac_proba(eval_point)
             grad_proba = j[out_index, :]
@@ -112,12 +111,12 @@ class GeometricModel(object):
             print(f"shape of output = {self.proba(eval_point).shape}")
 
         if self.diff_method == "functorch":
-            j = vmap(jacrev(self.proba))(eval_point)
+            j = torch.vmap(torch.func.jacrev(self.proba))(eval_point)
             if self.verbose: print(f"shape of j before reshape = {j.shape}")
             j = j.squeeze(1)
             if self.verbose: print(f"shape of j after reshape = {j.shape}")
         elif self.diff_method == "legacy":
-            j = jacobian(self.proba, eval_point, create_graph=create_graph) # TODO: what happens if not batched?
+            j = torch.autograd.functional.jacobian(self.proba, eval_point, create_graph=create_graph) # TODO: what happens if not batched?
             if self.verbose: print(f"shape of j before reshape = {j.shape}")
             j = j.sum(2)
             # We sum on 2 because it is the batch dimension for dx when the output of the
@@ -156,12 +155,12 @@ class GeometricModel(object):
             print(f"shape of output = {self.proba(eval_point).shape}")
 
         if self.diff_method == "functorch":
-            j = vmap(jacrev(self.score))(eval_point)
+            j = torch.vmap(torch.func.jacrev(self.score))(eval_point)
             if self.verbose: print(f"shape of j before reshape = {j.shape}")
             j = j.squeeze(1)
             if self.verbose: print(f"shape of j after reshape = {j.shape}")
         elif self.diff_method == "legacy":
-            j = jacobian(self.score, eval_point, create_graph=create_graph) # TODO: what happens if not batched?
+            j = torch.autograd.functional.jacobian(self.score, eval_point, create_graph=create_graph) # TODO: what happens if not batched?
             if self.verbose: print(f"shape of j before reshape = {j.shape}")
             j = j.sum(2)
             # We sum on 2 because it is the batch dimension for dx when the output of the
@@ -259,10 +258,10 @@ class GeometricModel(object):
             return first_term - second_term
 
         if self.diff_method == 'functorch':
-            # J_p = vmap(jacrev(self.proba))(eval_point) # Doesn't work because of softmax
+            # J_p = torch.vmap(torch.func.jacrev(self.proba))(eval_point) # Doesn't work because of softmax
             J_p = self.jac_proba(eval_point, create_graph=False)
-            H_p = vmap(torch.func.hessian(self.proba))(eval_point)
-            # H_p = vmap(jacrev(self.jac_proba, argnums=0))(eval_point) # Doesn't work because of dim and conv2D
+            H_p = torch.vmap(torch.func.hessian(self.proba))(eval_point)
+            # H_p = torch.vmap(torch.func.jacrev(self.jac_proba, argnums=0))(eval_point) # Doesn't work because of dim and conv2D
             if len(eval_point.shape) > 2:
                 k = len(eval_point.shape) - 1
                 H_p = H_p.flatten(-k).flatten(-(k+1), -2)
@@ -276,7 +275,7 @@ class GeometricModel(object):
             if method == 'double_jac':
                 J_p = self.jac_proba(eval_point)
                 J = lambda x: self.jac_proba(x, create_graph=True)
-                H_p = jacobian(J, eval_point).sum(3).flatten(3)  # 3 is the batch dimension for dx when the output of the net is (bs, c) and because there is no interactions between batches in the derivative we can sum over this dimension to retrieve the only non zero components.
+                H_p = torch.autograd.functional.jacobian(J, eval_point).sum(3).flatten(3)  # 3 is the batch dimension for dx when the output of the net is (bs, c) and because there is no interactions between batches in the derivative we can sum over this dimension to retrieve the only non zero components.
                 h_grad_p = torch.einsum("...alk, ...bk -> ...abl", H_p, J_p)
                 return  h_grad_p
             elif method == 'torch_hessian':
@@ -286,15 +285,17 @@ class GeometricModel(object):
                 for bs, point in enumerate(tqdm(eval_point)):
                     H_list = []
                     for class_index in range(shape[1]):
-                        h_p_i = hessian(lambda x: self.proba(x)[0, class_index], point)
+                        h_p_i = torch.autograd.functional.hessian(lambda x: self.proba(x)[0, class_index], point)
                         h_p_i = h_p_i.flatten(len(point.shape))
                         h_p_i = h_p_i.flatten(end_dim=-2)
                         H_list.append(h_p_i)
                     H_p.append(torch.stack(H_list))
                 H_p = torch.stack(H_p)
-                # H_list = torch.stack([torch.stack([hessian(lambda x: self.proba(x)[bs, i], eval_point[bs]) for i in range(shape[1])]) for bs in range(shape[0])])
+                # H_list = torch.stack([torch.stack([torch.autograd.functional.hessian(lambda x: self.proba(x)[bs, i], eval_point[bs]) for i in range(shape[1])]) for bs in range(shape[0])])
                 h_grad_p = torch.einsum("...alk, ...bk -> ...abl", H_p, J_p)
                 return  h_grad_p
+            else:
+                raise ValueError(f"Unknown method {method}.")
         else:
             raise NotImplementedError()
              
@@ -370,15 +371,15 @@ class GeometricModel(object):
                     )
 
         if self.diff_method == "functorch":
-            jac_metric = vmap(jacrev(self.DIM))(eval_point)
+            jac_metric = torch.vmap(torch.func.jacrev(self.DIM))(eval_point)
             if self.verbose: print(f"shape of j before reshape = {jac_metric.shape}")
             jac_metric.squeeze(3) # shouldn't be necessary
             if self.verbose: print(f"shape of j after reshape = {jac_metric.shape}")
-            # TODO: test behavior with jacrev
+            # TODO: test behavior with torch.func.jacrev
 
         elif self.diff_method == "legacy":
             G = lambda x: self.DIM(x, create_graph=True)
-            jac_metric = jacobian(G, eval_point)
+            jac_metric = torch.autograd.functional.jacobian(G, eval_point)
             if self.verbose: print(f"shape of j before reshape = {jac_metric.shape}")
             jac_metric = jac_metric.sum(3).flatten(3)  # Before reshape: (bs, i, j, bs_, k)  ∂_k G_{i,j}
             if self.verbose: print(f"shape of j after reshape = {jac_metric.shape}")
@@ -724,13 +725,13 @@ class GeometricModel(object):
         """
 
         if self.diff_method == "functorch":
-            J_omega = vmap(jacrev(self.connection_form))(eval_point)
+            J_omega = torch.vmap(torch.func.jacrev(self.connection_form))(eval_point)
             # TODO: verify dimensions
         elif self.diff_method == "legacy":
             if self.verbose:
                 print(f"GC: shape of eval_point = {eval_point.shape}")
                 print(f"GC: shape of output = {self.proba(eval_point).shape}")
-            J_omega = jacobian(self.connection_form, eval_point)
+            J_omega = torch.autograd.functional.jacobian(self.connection_form, eval_point)
             if self.verbose: print(f"GC: shape of j before reshape = {J_omega.shape}")
             
             J_omega = J_omega.sum(4)  # TODO: vérifier pourquoi on somme sur les batchs de l'entrée
