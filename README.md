@@ -1,4 +1,4 @@
-# The Geometry of Neural Networks: a Riemannian Foliation Perspective on Robustness (GoNN:FR).
+# The Geometry of Neural Networks: a Riemannian Foliation Perspective on Robustness (GoNN_FR)
 
 This package was developed as part of [Eliot Tron](https://halva.ynh.fr/eliot.tron)'s PhD thesis, under the supervision of Nicolas Couëllan, Rita Fioresi and Stéphane Puechmorel.
 It implements the basic blocks of the framework described in the manuscript (soon) available online [here](https://theses.fr/s354611).
