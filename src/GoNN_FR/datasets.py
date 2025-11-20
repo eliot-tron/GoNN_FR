@@ -6,7 +6,7 @@ from torch.utils import data
 class XorDataset(data.Dataset):
     """Create dataset for Xor learning."""
 
-    def __init__(self, nsample=1000, test=False, discrete=True, range=(0,1)):
+    def __init__(self, nsample=1000, test=False, discrete=False, range=(0,1)):
         """Init the dataset
         :returns: TODO
 
@@ -31,12 +31,12 @@ class XorDataset(data.Dataset):
                     torch.ones((self.nsample, 2)) * 0.5)
             else:
                 self.data = torch.rand((self.nsample, 2)) * (b - a) + a
-        self.targets = torch.logical_xor(torch.round(self.data)[...,0], torch.round(self.data)[...,1]).int()
+        self.targets = torch.logical_xor(torch.round(self.data)[...,0], torch.round(self.data)[...,1]).long()
 
     def __getitem__(self, index):
         """Get a data point."""
         assert index < self.nsample, "The index must be less than the number of samples."
-        inp, lab = self.data[index], self.data[index]
+        inp, lab = self.data[index], self.targets[index]
         return inp, lab
 
     def __len__(self):
@@ -64,12 +64,12 @@ class OrDataset(data.Dataset):
             self.data = torch.bernoulli(
                 torch.ones((self.nsample, 2)) * 0.5)
         # self.targets = torch.logical_or(*torch.round(self.data)).type(torch.float)
-        self.targets = torch.logical_or(torch.round(self.data)[...,0], torch.round(self.data)[...,1]).int()
+        self.targets = torch.logical_or(torch.round(self.data)[...,0], torch.round(self.data)[...,1]).long()
 
     def __getitem__(self, index):
         """Get a data point."""
         assert index < self.nsample, "The index must be less than the number of samples."
-        inp, lab = self.data[index], self.data[index]
+        inp, lab = self.data[index], self.targets[index]
         return inp, lab
 
     def __len__(self):
@@ -148,8 +148,8 @@ class CircleDataset(data.Dataset):
             for i, p in enumerate(self.data):
                 self.data[i] = p * (torch.randn(1) * 0.01 + 1)
 
-        self.targets = torch.range(0, self.nsample) // (self.nsample // self.nclasses)
-        self.targets = self.targets.int()
+        self.targets = torch.arange(0, self.nsample) // (self.nsample // self.nclasses)
+        self.targets = self.targets.long()
     
 
     def __getitem__(self, index):
