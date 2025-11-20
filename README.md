@@ -8,7 +8,7 @@ It implements the basic blocks of the framework described in the manuscript (soo
 Install GoNN_FR with pip:
 
 ```bash
-  python -m pip install GoNN_FR
+  python -m pip install git+https://codeberg.org/eliot-tron/GoNN_FR
 ```
     
 ## Usage/Examples
