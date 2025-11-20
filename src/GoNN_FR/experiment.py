@@ -54,6 +54,8 @@ class Experiment(ABC):
 
     """
 
+    task = None
+
     def __init__(self,
                  dataset_name: str,
                  non_linearity: str,
@@ -165,7 +167,7 @@ class Experiment(ABC):
                       save_directory: Union[Path, str]=f"./checkpoint/",
                       lr: float=0.01,
                       batch_size: int=50,
-                      number_of_epochs: int=30,
+                      number_of_epochs: int=10,
                       ) -> None:
         """Train the network and save the weights."""
         # optimizer = torch.optim.SGD(self.network.parameters(), lr=lr)
@@ -186,7 +188,10 @@ class Experiment(ABC):
         )
         save_directory = Path(save_directory).expanduser()
         save_directory.mkdir(parents=True, exist_ok=True)
-        loss_fn = nn.functional.nll_loss
+        if self.task == "classification":
+            loss_fn = nn.CrossEntropyLoss()
+        else:
+            raise NotImplementedError
         
         best_correct = 0
         log_interval = len(train_loader) // 10
@@ -213,9 +218,11 @@ class Experiment(ABC):
                 for data, target in val_loader:
                     data, target = data.to(self.device).to(self.dtype), target.to(self.device)
                     output = self.network(data)
-                    test_loss += loss_fn(output, target, reduction="sum").item()
+                    test_loss += loss_fn(output, target).sum().item()
                     pred = output.argmax(dim=-1, keepdim=True)
-                    correct += pred.eq(target.view_as(pred)).sum().item()
+                    # correct += pred.eq(target.view_as(pred)).sum().item()
+                    correct += (pred == target.view_as(pred)).sum().item()
+
             test_loss /= len(val_loader.dataset)
             print(f"\nTest set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(val_loader.dataset)} ({100.0 * correct / len(val_loader.dataset)})")
             
@@ -241,6 +248,8 @@ class Experiment(ABC):
                 self.init_networks()
                 self.train_network()
                 self.network = None
+
+            self.checkpoint_path = default_path
         else:
             print(f"WARNING: self.checkpoint_path is already defined by {self.checkpoint_path}, doing nothing.")
 
@@ -312,16 +321,20 @@ class Experiment(ABC):
         """Initializes the value of self.network based on the string
         self.dataset_name. It must be redefined for each child based
         on the dataset.
-
         """
         if isinstance(self.network, torch.nn.Module):
+
+            if self.checkpoint_path:
+                print(f"Loading weights at {self.checkpoint_path}.")
+                self.network.load_state_dict(torch.load(self.checkpoint_path))
+
             self.network = self.network.to(self.device).to(self.dtype)
 
             if torch.cuda.device_count() > 1 and self.device.type == 'cuda':
                 print(f"Let's use {torch.cuda.device_count()} GPUs!")
                 # self.network = nn.DataParallel(self.network)
 
-            print(f"network to {self.device} as {self.dtype} done")
+            print(f"Network to {self.device} as {self.dtype} done")
         elif self.dataset_name in ['Noise', 'Adversarial']:
             raise ValueError(f"{self.dataset_name} cannot have an associated network.")
         else:
@@ -734,6 +747,8 @@ class Experiment(ABC):
 
 class XORExp(Experiment):
 
+    task = "classification"
+
     def __init__(self, 
                  non_linearity: str,
                  adversarial_budget: float,
@@ -759,18 +774,6 @@ class XORExp(Experiment):
                          network,
                          )
 
-    # def init_checkpoint_path(self):
-    #     if self.non_linearity == 'Sigmoid':
-    #         self.checkpoint_path = './checkpoint/xor_net_sigmoid_20.pt'
-    #     elif self.non_linearity == 'ReLU':
-    #         self.checkpoint_path = './checkpoint/xor_net_relu_30.pt'
-    #     elif self.non_linearity == 'GELU':
-    #         self.checkpoint_path = './checkpoint/xor_net_gelu_acc100.pt'
-    #     # elif self.non_linearity == 'LeakyReLU':
-    #     #     self.checkpoint_path = './checkpoint/xor_net_leakyrelu_30.pt'
-    #     else:
-    #         super().init_checkpoint_path()
-
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: XorDataset(
             nsample=100000,
@@ -781,12 +784,12 @@ class XORExp(Experiment):
         return super().init_input_space(root, download)
 
     def init_networks(self):
-        self.network = xor_net(self.checkpoint_path, non_linearity=self.nl_function)
+        self.network = xor_net(non_linearity=self.nl_function)
 
         return super().init_networks()
 
     def plot_foliation(self,
-                       transverse: bool=True,
+                       transverse: bool=False,
                        nleaves: int | None = None,
                        ) -> None:
         """Plots the kernel / transverse foliation associated to
@@ -809,6 +812,12 @@ class XORExp(Experiment):
         leaves = self.batch_compute_leaf(init_points, transverse=transverse).detach()
 
         for leaf in tqdm(leaves.cpu()):
+
+            if not transverse:
+                pred_on_leaf = self.geo_model.proba(leaf)
+                if not pred_on_leaf.allclose(pred_on_leaf.mean(0, keepdim=True), rtol=0.001):
+                    print(f"Leaf not computed correctly, std dev:{(pred_on_leaf - pred_on_leaf.mean(0, keepdim=True)).pow(2).mean().sqrt()}")
+
             plt.plot(leaf[:, 0], leaf[:, 1], color='blue', linewidth=0.2, zorder=1)
 
         if self.dataset_name == "XOR":
@@ -819,6 +828,8 @@ class XORExp(Experiment):
 
 
 class XOR3DExp(Experiment):
+
+    task = "classification"
 
     def __init__(self, 
                  non_linearity: str,
@@ -845,13 +856,6 @@ class XOR3DExp(Experiment):
                          network,
                          )
 
-    def init_checkpoint_path(self):
-        if self.non_linearity == 'ReLU':
-            self.checkpoint_path = './checkpoint/xor3d_net_relu_hl16_acc96.pt'
-        else:
-            super().init_checkpoint_path()
-            # raise NotImplementedError(f"XOR3D not implement for {self.non_linearity}.")
-
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: Xor3dDataset(
             nsample=10000,
@@ -862,7 +866,7 @@ class XOR3DExp(Experiment):
         return super().init_input_space(root, download)
 
     def init_networks(self):
-        self.network = xor3d_net(self.checkpoint_path, non_linearity=self.nl_function)
+        self.network = xor3d_net(non_linearity=self.nl_function)
 
         return super().init_networks()
 
@@ -895,6 +899,10 @@ class XOR3DExp(Experiment):
             if transverse:
                 ax.plot(leaf[:, 0], leaf[:, 1], leaf[:, 2], color='blue', linewidth=0.2, zorder=1)
             else:
+                pred_on_leaf = self.geo_model.proba(leaf)
+                if not pred_on_leaf.allclose(pred_on_leaf.mean(0, keepdim=True), rtol=0.001):
+                    print(f"Leaf not computed correctly, std dev:{(pred_on_leaf - pred_on_leaf.mean(0, keepdim=True)).pow(2).mean().sqrt()}")
+
                 X, Y = torch.meshgrid(leaf[:, 0], leaf[:, 1])
                 Z = leaf[:, 2].unsqueeze(0).expand(leaf.shape[0], -1)
                 ax.plot_wireframe(X, Y, Z, color='blue', zorder=1, rcount=10, ccount=10)
@@ -911,6 +919,9 @@ class XOR3DExp(Experiment):
 
 
 class CircleExp(Experiment): # TODO: put nclasses in the dataset name
+
+    task = "classification"
+
     def __init__(self, 
                  non_linearity: str,
                  adversarial_budget: float,
@@ -938,9 +949,6 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
                          network,
                          )
 
-    # def init_checkpoint_path(self):
-    #     self.checkpoint_path = f'./checkpoint/deep_circle_net_c{self.nclasses}_{self.non_linearity.lower()}_30.pt'
-
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: CircleDataset(
             nsample=10000,
@@ -952,7 +960,7 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
         return super().init_input_space(root, download)
 
     def init_networks(self):
-        self.network = circle_net(self.checkpoint_path, non_linearity=self.nl_function, nclasses=self.nclasses)
+        self.network = circle_net(non_linearity=self.nl_function, nclasses=self.nclasses)
 
         return super().init_networks()
 
@@ -984,6 +992,12 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
         leaves = self.batch_compute_leaf(init_points, transverse=transverse).detach()
 
         for leaf in tqdm(leaves.cpu()):
+
+            if not transverse:
+                pred_on_leaf = self.geo_model.proba(leaf)
+                if not pred_on_leaf.allclose(pred_on_leaf.mean(0, keepdim=True), rtol=0.001):
+                    print(f"Leaf not computed correctly, std dev:{(pred_on_leaf - pred_on_leaf.mean(0, keepdim=True)).pow(2).mean().sqrt()}")
+
             plt.plot(leaf[:, 0], leaf[:, 1], color='blue', linewidth=0.2, zorder=1)
 
         print("...plotting the data points...")
@@ -999,6 +1013,8 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
 
 
 class MNISTExp(Experiment):
+
+    task = "classification"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1027,9 +1043,6 @@ class MNISTExp(Experiment):
                          network,
                          )
 
-    def init_checkpoint_path(self):
-        self.checkpoint_path = f'./checkpoint/mnist_medium_cnn_30_{self.pool}_{self.non_linearity}.pt'
-
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.MNIST(
             root,
@@ -1042,14 +1055,16 @@ class MNISTExp(Experiment):
 
     def init_networks(self):
         maxpool = (self.pool == 'maxpool')
-        self.network = mnist_medium_cnn(self.checkpoint_path,
-                                                 non_linearity=self.nl_function,
-                                                 maxpool=maxpool)
+        self.network = mnist_medium_cnn(
+            non_linearity=self.nl_function,
+            maxpool=maxpool)
 
         return super().init_networks()
 
 
 class CIFAR10Exp(Experiment):
+
+    task = "classification"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1078,9 +1093,6 @@ class CIFAR10Exp(Experiment):
                          network,
                          )
 
-    def init_checkpoint_path(self):
-        self.checkpoint_path = f'./checkpoint/cifar10_medium_cnn_30_{self.pool}_{self.non_linearity}_vgg11.pt'
-
     def init_input_space(self, root: str = 'data', download: bool = True):
         transform = transforms.Compose(
             [transforms.ToTensor(),
@@ -1098,12 +1110,14 @@ class CIFAR10Exp(Experiment):
 
     def init_networks(self):
         maxpool = (self.pool == 'maxpool')
-        self.network = cifar_medium_cnn(self.checkpoint_path, maxpool=maxpool)
+        self.network = cifar_medium_cnn(maxpool=maxpool)
 
         return super().init_networks()
 
 
 class LettersExp(Experiment):
+
+    task = "classification"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1146,6 +1160,8 @@ class LettersExp(Experiment):
 
 class FashionMNISTExp(Experiment):
 
+    task = "classification"
+
     def __init__(self, 
                  non_linearity: str,
                  adversarial_budget: float,
@@ -1185,6 +1201,8 @@ class FashionMNISTExp(Experiment):
 
 
 class KMNISTExp(Experiment):
+
+    task = "classification"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1226,6 +1244,8 @@ class KMNISTExp(Experiment):
 
 class QMNISTExp(Experiment):
 
+    task = "classification"
+
     def __init__(self, 
                  non_linearity: str,
                  adversarial_budget: float,
@@ -1265,6 +1285,8 @@ class QMNISTExp(Experiment):
 
 
 class CIFARMNISTExp(Experiment):
+
+    task = "classification"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1314,6 +1336,8 @@ class CIFARMNISTExp(Experiment):
 
 class NoiseExp(Experiment):
 
+    task = "classification"
+
     def __init__(self, 
                  non_linearity: str,
                  adversarial_budget: float,
@@ -1357,6 +1381,8 @@ class NoiseExp(Experiment):
 
 
 class AdversarialExp(Experiment):
+
+    task = "classification"
 
     def __init__(self, 
                  non_linearity: str,

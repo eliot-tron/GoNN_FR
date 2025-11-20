@@ -10,7 +10,7 @@ def oneD_probability_to_twoD_class(input_proba):
 
 
 """ XOR network """
-def xor_net(checkpoint_path: str = "", hid_size = 8, non_linearity: nn.Module=nn.ReLU()) -> nn.Module:
+def xor_net(hid_size = 8, non_linearity: nn.Module=nn.ReLU()) -> nn.Module:
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net = nn.Sequential(
         nn.Linear(2, hid_size),
@@ -23,12 +23,9 @@ def xor_net(checkpoint_path: str = "", hid_size = 8, non_linearity: nn.Module=nn
         # copy(non_linearity),
         nn.Linear(hid_size, 2),
     )
-    # net = net.to(device)
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path)) #, map_location=device))
     return net
 
-def xor_net_old(checkpoint_path: str = "", hid_size = 8, non_linearity=nn.Sigmoid()) -> nn.Module:
+def xor_net_old(hid_size = 8, non_linearity=nn.Sigmoid()) -> nn.Module:
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net = nn.Sequential(
         nn.Linear(2, hid_size),
@@ -36,25 +33,20 @@ def xor_net_old(checkpoint_path: str = "", hid_size = 8, non_linearity=nn.Sigmoi
         nn.Linear(hid_size, 1),
         # nn.Sigmoid() if not score else nn.Sequential(),
     )
-    # net = net.to(device)
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path)) #, map_location=device))
     return net
 
 
 """ XOR 3D network """
-def xor3d_net(checkpoint_path: str = "", hid_size = 2, non_linearity: nn.Module=nn.ReLU()) -> nn.Module:
+def xor3d_net(hid_size = 2, non_linearity: nn.Module=nn.ReLU()) -> nn.Module:
     net = nn.Sequential(
         nn.Linear(3, hid_size),
         non_linearity,
         nn.Linear(hid_size, 2),
     )
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path)) #, map_location=device))
     return net
 
 """ Circle network """
-def circle_net(checkpoint_path: str = "", hid_size = [2, 8, 8, 2], non_linearity: nn.Module=nn.ReLU(), nclasses=2) -> nn.Module:
+def circle_net(hid_size = [2, 8, 8, 2], non_linearity: nn.Module=nn.ReLU(), nclasses=2) -> nn.Module:
     if not isinstance(hid_size, list):
         hid_size = [hid_size]
     net = nn.Sequential(
@@ -63,24 +55,20 @@ def circle_net(checkpoint_path: str = "", hid_size = [2, 8, 8, 2], non_linearity
         *[nn.Sequential(nn.Linear(hid_size[i], hid_size[i + 1]), copy(non_linearity)) for i in range(len(hid_size[1:]))],
         nn.Linear(hid_size[-1], nclasses),
     )
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path)) #, map_location=device))
     return net
 
 
-def shallow_circle_net(checkpoint_path: str = "", hid_size = 16, non_linearity: nn.Module=nn.ReLU(), nclasses=2) -> nn.Module:
+def shallow_circle_net(hid_size = 16, non_linearity: nn.Module=nn.ReLU(), nclasses=2) -> nn.Module:
     net = nn.Sequential(
         nn.Linear(2, hid_size),
         non_linearity,
         nn.Linear(hid_size, nclasses),
     )
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path)) #, map_location=device))
     return net
 
 
 """ MNIST network """
-def mnist_medium_cnn(checkpoint_path: str = "", num_classes: int=10, non_linearity:nn.Module=nn.ReLU(), maxpool=False) -> nn.Module:
+def mnist_medium_cnn(num_classes: int=10, non_linearity:nn.Module=nn.ReLU(), maxpool=False) -> nn.Module:
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")    
     net = nn.Sequential(
         nn.Conv2d(1, 32, 3, 1),
@@ -93,9 +81,6 @@ def mnist_medium_cnn(checkpoint_path: str = "", num_classes: int=10, non_lineari
         deepcopy(non_linearity),
         nn.Linear(128, num_classes),
     )
-    # net = net.to(device)
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path)) # , map_location=device))
     return net
 
 
@@ -136,13 +121,11 @@ class VGG(nn.Module):
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
 
-def cifar_medium_cnn(checkpoint_path: str = "", num_classes: int=10, non_linearity=nn.ReLU(), maxpool=False) -> nn.Module:
+def cifar_medium_cnn(num_classes: int=10, non_linearity=nn.ReLU(), maxpool=False) -> nn.Module:
     net = VGG(vgg_name='VGG11', non_linearity=non_linearity, num_classes=num_classes)
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path, map_location=torch.device('cpu')))
     return net
 
-def cifar_medium_cnn_inter(checkpoint_path: str = "", num_classes: int=10, non_linearity=nn.ReLU(), maxpool=False) -> nn.Module:
+def cifar_medium_cnn_inter(num_classes: int=10, non_linearity=nn.ReLU(), maxpool=False) -> nn.Module:
     net = nn.Sequential(
         nn.Conv2d(3, 300, 3, 1),
         deepcopy(non_linearity),
@@ -160,6 +143,4 @@ def cifar_medium_cnn_inter(checkpoint_path: str = "", num_classes: int=10, non_l
         deepcopy(non_linearity),
         nn.Linear(100, num_classes),
     )
-    if checkpoint_path:
-        net.load_state_dict(torch.load(checkpoint_path))
     return net
