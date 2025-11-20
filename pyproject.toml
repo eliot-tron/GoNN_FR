@@ -30,3 +30,6 @@ dependencies = [
 [project.urls]
 Homepage = "https://codeberg.org/eliot-tron/GoNN_FR"
 Issues = "https://codeberg.org/eliot-tron/GoNN_FR/issues"
+
+[tool.hatch.metadata]
+allow-direct-references = true
