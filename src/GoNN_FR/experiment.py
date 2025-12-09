@@ -10,7 +10,7 @@ from matplotlib import cm, colors, pyplot as plt
 from torch import nn
 import torch
 from torchdiffeq import odeint
-from torchvision import datasets
+from torchvision import datasets, transforms
 from tqdm import tqdm
 
 from GoNN_FR.datasets import CircleDataset, Xor3dDataset, XorDataset
@@ -1027,7 +1027,7 @@ class MNISTExp(Experiment):
                  random: bool,
                  restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str | None = None,
+                 checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         super().__init__("MNIST", 
@@ -1036,13 +1036,13 @@ class MNISTExp(Experiment):
                          dtype,
                          device,
                          num_samples,
-                         pool,
                          random,
                          restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
                          )
+        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.MNIST(
@@ -1077,7 +1077,7 @@ class CIFAR10Exp(Experiment):
                  random: bool,
                  restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str | None = None,
+                 checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         super().__init__("CIFAR10", 
@@ -1086,13 +1086,13 @@ class CIFAR10Exp(Experiment):
                          dtype,
                          device,
                          num_samples,
-                         pool,
                          random,
                          restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
                          )
+        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         transform = transforms.Compose(
@@ -1130,7 +1130,7 @@ class LettersExp(Experiment):
                  random: bool,
                  restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str | None = None,
+                 checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         super().__init__("Letters", 
@@ -1139,13 +1139,13 @@ class LettersExp(Experiment):
                          dtype,
                          device,
                          num_samples,
-                         pool,
                          random,
                          restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
                          )
+        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.EMNIST(
@@ -1173,7 +1173,7 @@ class FashionMNISTExp(Experiment):
                  random: bool,
                  restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str | None = None,
+                 checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         super().__init__("FashionMNIST", 
@@ -1182,13 +1182,13 @@ class FashionMNISTExp(Experiment):
                          dtype,
                          device,
                          num_samples,
-                         pool,
                          random,
                          restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
                          )
+        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.FashionMNIST(
@@ -1215,7 +1215,7 @@ class KMNISTExp(Experiment):
                  random: bool,
                  restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str | None = None,
+                 checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         super().__init__("KMNIST", 
@@ -1224,13 +1224,13 @@ class KMNISTExp(Experiment):
                          dtype,
                          device,
                          num_samples,
-                         pool,
                          random,
                          restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
                          )
+        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.KMNIST(
@@ -1257,7 +1257,7 @@ class QMNISTExp(Experiment):
                  random: bool,
                  restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str | None = None,
+                 checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         super().__init__("QMNIST", 
@@ -1266,13 +1266,13 @@ class QMNISTExp(Experiment):
                          dtype,
                          device,
                          num_samples,
-                         pool,
                          random,
                          restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
                          )
+        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.QMNIST(
@@ -1299,7 +1299,7 @@ class CIFARMNISTExp(Experiment):
                  random: bool,
                  restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str | None = None,
+                 checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         super().__init__("CIFARMNIST", 
@@ -1308,13 +1308,13 @@ class CIFARMNISTExp(Experiment):
                          dtype,
                          device,
                          num_samples,
-                         pool,
                          random,
                          restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
                          )
+        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         transform = transforms.Compose(
