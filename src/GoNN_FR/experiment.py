@@ -1030,6 +1030,7 @@ class MNISTExp(Experiment):
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
+        self.pool = pool
         super().__init__("MNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1042,7 +1043,6 @@ class MNISTExp(Experiment):
                          checkpoint_path,
                          network,
                          )
-        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.MNIST(
@@ -1080,6 +1080,7 @@ class CIFAR10Exp(Experiment):
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
+        self.pool = pool
         super().__init__("CIFAR10", 
                          non_linearity,
                          adversarial_budget,
@@ -1092,7 +1093,6 @@ class CIFAR10Exp(Experiment):
                          checkpoint_path,
                          network,
                          )
-        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         transform = transforms.Compose(
@@ -1133,6 +1133,7 @@ class LettersExp(Experiment):
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
+        self.pool = pool
         super().__init__("Letters", 
                          non_linearity,
                          adversarial_budget,
@@ -1145,7 +1146,6 @@ class LettersExp(Experiment):
                          checkpoint_path,
                          network,
                          )
-        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.EMNIST(
@@ -1176,6 +1176,7 @@ class FashionMNISTExp(Experiment):
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
+        self.pool = pool
         super().__init__("FashionMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1188,7 +1189,6 @@ class FashionMNISTExp(Experiment):
                          checkpoint_path,
                          network,
                          )
-        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.FashionMNIST(
@@ -1218,6 +1218,7 @@ class KMNISTExp(Experiment):
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
+        self.pool = pool
         super().__init__("KMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1230,7 +1231,6 @@ class KMNISTExp(Experiment):
                          checkpoint_path,
                          network,
                          )
-        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.KMNIST(
@@ -1260,6 +1260,7 @@ class QMNISTExp(Experiment):
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
+        self.pool = pool
         super().__init__("QMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1272,7 +1273,6 @@ class QMNISTExp(Experiment):
                          checkpoint_path,
                          network,
                          )
-        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         self.input_space = {x: datasets.QMNIST(
@@ -1302,6 +1302,7 @@ class CIFARMNISTExp(Experiment):
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
+        self.pool = pool
         super().__init__("CIFARMNIST", 
                          non_linearity,
                          adversarial_budget,
@@ -1314,7 +1315,6 @@ class CIFARMNISTExp(Experiment):
                          checkpoint_path,
                          network,
                          )
-        self.pool = pool
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         transform = transforms.Compose(
