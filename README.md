@@ -32,7 +32,7 @@ from GoNN_FR import geometry, experiment
 
 ## Authors
 
-- [@eliot-tron](https://codeberg.org/eliot-tron) ([website](https://halva.ynh.fr/eliot.tron)).
+- [@eliot-tron](https://github.com/eliot-tron) ([website](https://halva.ynh.fr/eliot.tron)).
 
 ## Citation
 If you use (part of) this work, please cite the manuscript of my PhD thesis with the follow bibtex:
