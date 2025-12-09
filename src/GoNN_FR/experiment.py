@@ -452,7 +452,6 @@ class Experiment(ABC):
         
         return boxplot
     
-    @abstractmethod
     def plot_foliation(self,
                        transverse: bool=True,
                        nleaves: int | None = None,
