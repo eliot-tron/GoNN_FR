@@ -239,7 +239,8 @@ class Experiment(ABC):
             if not default_path.is_file():
                 train = ('y' == input(f"The file {default_path} does not exist, do you want to train the model ? y/[n]").lower())
                 if not train:
-                    raise NotImplementedError(f"No checkpoint path given for {self.dataset_name}.")
+                    print(f"WARNING: No checkpoint defined, using random weights.")
+                    # raise NotImplementedError(f"No checkpoint path given for {self.dataset_name}.")
 
             else:
                 train = ('y' == input(f"The file {default_path} exists, do you want to retrain the model ? y/[n]").lower())
