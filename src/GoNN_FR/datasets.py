@@ -35,7 +35,7 @@ class XorDataset(data.Dataset):
 
     def __getitem__(self, index):
         """Get a data point."""
-        assert index < self.nsample, "The index must be less than the number of samples."
+        # assert index < self.nsample, "The index must be less than the number of samples."
         inp, lab = self.data[index], self.targets[index]
         return inp, lab
 
@@ -68,7 +68,7 @@ class OrDataset(data.Dataset):
 
     def __getitem__(self, index):
         """Get a data point."""
-        assert index < self.nsample, "The index must be less than the number of samples."
+        # assert index < self.nsample, "The index must be less than the number of samples."
         inp, lab = self.data[index], self.targets[index]
         return inp, lab
 
@@ -110,7 +110,7 @@ class Xor3dDataset(data.Dataset):
 
     def __getitem__(self, index):
         """Get a data point."""
-        assert index <= self.nsample, "The index must be less than the number of samples."
+        # assert index <= self.nsample, "The index must be less than the number of samples."
         inp = self.input_vars[index]
         return inp, torch.logical_xor(torch.round(inp[0]), torch.logical_xor(*torch.round(inp[1:]))).long() 
 
@@ -154,7 +154,7 @@ class CircleDataset(data.Dataset):
 
     def __getitem__(self, index):
         """Get a data point."""
-        assert index <= self.nsample, "The index must be less than the number of samples."
+        # assert index <= self.nsample, "The index must be less than the number of samples."
         inp = self.data[index]
         lab = self.targets[index]
         return inp, lab
