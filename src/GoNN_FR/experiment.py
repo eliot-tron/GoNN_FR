@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from functools import partial
 from os import makedirs, path
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Sequence, Type, Union
 
 from autoattack import AutoAttack
 from matplotlib import cm, colors, pyplot as plt
@@ -13,6 +13,7 @@ from torchdiffeq import odeint
 from torchvision import datasets, transforms
 from tqdm import tqdm
 
+from GoNN_FR.utils import SlicingLayer
 from GoNN_FR.datasets import CircleDataset, Xor3dDataset, XorDataset
 from GoNN_FR.geometry import GeometricModel
 from GoNN_FR.networks import (
@@ -1435,6 +1436,60 @@ class AdversarialExp(Experiment):
 
     def init_networks(self):
         raise ValueError(f"{self.dataset_name} cannot have an associated network.")
+
+
+def sub_experiment(experiment: Type[Experiment], subset_classes: Sequence[int]) -> Type[Experiment]:
+    """Return a new class which is a subset of an existing experiment class.
+
+    Args:
+        experiment (Type[Experiment]): Base experiment.
+        subset_classes (Sequence[int]): subset_classes
+
+    Returns:
+        Type[Experiment]: Experiment with targets that are a subset of the original ones.
+    """
+
+    # class Subset(experiment):
+    #     """Subset of experiment."""
+        # def __init__(self, *args, **kwargs,):
+        #     self.subset_classes = subset_classes
+        #     self.network = torch.nn.Sequential(self.network, SlicingLayer(indices=self.subset_classes, dim=-1))
+        #     self.input_space = {
+        #         k: torch.utils.data.Subset(
+        #             v,
+        #             torch.where(torch.stack([(v.targets == c) for c in self.subset_classes], dim=0).any(dim=0))[0].tolist()
+        #         ) for k, v in self.input_space.items()
+        #     }
+        #     super().__init__(*args, **kwargs)
+
+    def init_input_space(self, *args, **kwargs):
+        super(type(self), self).init_input_space(*args, **kwargs)
+        self.input_space = {
+            k: torch.utils.data.Subset( # TODO: warning: has no attribute from the original dataset
+                v,
+                torch.where(torch.stack([(v.targets == c) for c in self.subset_classes], dim=0).any(dim=0))[0].tolist()
+            ) for k, v in self.input_space.items()
+        }
+
+
+    def init_networks(self, *args, **kwargs):
+        super(type(self), self).init_networks(*args, **kwargs)
+        self.network = torch.nn.Sequential(self.network, SlicingLayer(indices=self.subset_classes, dim=-1))
+
+
+        
+
+    
+    return type(f"Subset{len(subset_classes)}{experiment.__name__}",
+                (experiment, ),
+                {
+                    "subset_classes": subset_classes,
+                    "init_input_space": init_input_space,
+                    "init_networks": init_networks,
+                    "plot_foliation": NotImplemented,
+                })
+
+
 
 
 implemented_experiment_dict = {

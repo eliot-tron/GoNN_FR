@@ -1,5 +1,15 @@
 import torch
 
+class SlicingLayer(torch.nn.Module):
+    def __init__(self, indices, dim=-1, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.indices = indices
+        self.dim = dim
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        return torch.index_select(input, dim=self.dim, index=self.indices)
+
+
 def orthonormalization(
     basis: torch.Tensor,
     metric: torch.Tensor,
