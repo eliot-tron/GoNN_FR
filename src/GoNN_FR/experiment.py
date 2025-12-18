@@ -40,6 +40,7 @@ class Experiment(ABC):
 
     Attributes:
         dataset_name: Name of the dataset used for the experiment.
+        task: "classification" or "regression" or else.
         network: Main neural network used for the experiment.
         checkpoint_path: Path to the model checkpoint.
         adversarial_budget: Budget allocated for adversarial attacks if used.
@@ -56,9 +57,9 @@ class Experiment(ABC):
     """
 
     task = None
+    dataset_name = ""
 
     def __init__(self,
-                 dataset_name: str,
                  non_linearity: str,
                  adversarial_budget: float,
                  dtype: torch.dtype,
@@ -73,7 +74,6 @@ class Experiment(ABC):
         """Initializes a new experiment with the provided parameters.
 
         Args:
-            dataset_name (str): Name of the dataset used.
             non_linearity (str): Name of non-linearity used.
             adversarial_budget (float): Budget allocated for adversarial attacks.
             dtype (torch.dtype): Data type used for tensors.
@@ -89,7 +89,6 @@ class Experiment(ABC):
             network (nn.Module, optional): Main neural network used for the experiment.
                 Defaults to None.
         """
-        self.dataset_name = dataset_name
         self.non_linearity = non_linearity
         self.checkpoint_path = checkpoint_path
         self.adversarial_budget = adversarial_budget
@@ -750,6 +749,7 @@ class Experiment(ABC):
 class XORExp(Experiment):
 
     task = "classification"
+    dataset_name = "XOR"
 
     def __init__(self, 
                  non_linearity: str,
@@ -763,8 +763,7 @@ class XORExp(Experiment):
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  ):
-        super().__init__("XOR", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -832,6 +831,7 @@ class XORExp(Experiment):
 class XOR3DExp(Experiment):
 
     task = "classification"
+    dataset_name = "XOR3D"
 
     def __init__(self, 
                  non_linearity: str,
@@ -845,8 +845,7 @@ class XOR3DExp(Experiment):
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  ):
-        super().__init__("XOR3D", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -923,6 +922,7 @@ class XOR3DExp(Experiment):
 class CircleExp(Experiment): # TODO: put nclasses in the dataset name
 
     task = "classification"
+    dataset_name = "Circle"
 
     def __init__(self, 
                  non_linearity: str,
@@ -938,8 +938,8 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
                  nclasses: int=2,
                  ):
         self.nclasses = nclasses
-        super().__init__(f"Circle{nclasses}", 
-                         non_linearity,
+        self.dataset_name += str(nclasses)
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1017,6 +1017,7 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
 class MNISTExp(Experiment):
 
     task = "classification"
+    dataset_name = "MNIST"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1032,8 +1033,7 @@ class MNISTExp(Experiment):
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
-        super().__init__("MNIST", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1067,6 +1067,7 @@ class MNISTExp(Experiment):
 class CIFAR10Exp(Experiment):
 
     task = "classification"
+    dataset_name = "CIFAR10"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1082,8 +1083,7 @@ class CIFAR10Exp(Experiment):
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
-        super().__init__("CIFAR10", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1120,6 +1120,7 @@ class CIFAR10Exp(Experiment):
 class LettersExp(Experiment):
 
     task = "classification"
+    dataset_name = "Letters"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1135,8 +1136,7 @@ class LettersExp(Experiment):
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
-        super().__init__("Letters", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1163,6 +1163,7 @@ class LettersExp(Experiment):
 class FashionMNISTExp(Experiment):
 
     task = "classification"
+    dataset_name = "FashionMNIST"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1178,8 +1179,7 @@ class FashionMNISTExp(Experiment):
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
-        super().__init__("FashionMNIST", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1205,6 +1205,7 @@ class FashionMNISTExp(Experiment):
 class KMNISTExp(Experiment):
 
     task = "classification"
+    dataset_name = "KMNIST"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1220,8 +1221,7 @@ class KMNISTExp(Experiment):
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
-        super().__init__("KMNIST", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1247,6 +1247,7 @@ class KMNISTExp(Experiment):
 class QMNISTExp(Experiment):
 
     task = "classification"
+    dataset_name = "QMNIST"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1262,8 +1263,7 @@ class QMNISTExp(Experiment):
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
-        super().__init__("QMNIST", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1289,6 +1289,7 @@ class QMNISTExp(Experiment):
 class CIFARMNISTExp(Experiment):
 
     task = "classification"
+    dataset_name = "CIFARMNIST"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1304,8 +1305,7 @@ class CIFARMNISTExp(Experiment):
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
-        super().__init__("CIFARMNIST", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1339,6 +1339,7 @@ class CIFARMNISTExp(Experiment):
 class NoiseExp(Experiment):
 
     task = "classification"
+    dataset_name = "Noise"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1352,8 +1353,7 @@ class NoiseExp(Experiment):
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  ):
-        super().__init__("Noise", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          dtype,
                          device,
@@ -1385,6 +1385,7 @@ class NoiseExp(Experiment):
 class AdversarialExp(Experiment):
 
     task = "classification"
+    dataset_name = "Adversarial"
 
     def __init__(self, 
                  non_linearity: str,
@@ -1398,8 +1399,7 @@ class AdversarialExp(Experiment):
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  ):
-        super().__init__("Adversarial", 
-                         non_linearity,
+        super().__init__(non_linearity,
                          adversarial_budget,
                          torch.float,
                          device,
