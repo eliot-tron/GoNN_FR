@@ -106,12 +106,13 @@ class Experiment(ABC):
         if self.input_space is None:
             self.init_input_space()
         self.init_input_points()
-        if self.checkpoint_path == "":
-            self.init_checkpoint_path()
         if network is None:
-            self.init_networks()
+            self.network = self._default_network()
         else:
             self.network = network 
+        if self.checkpoint_path == "":
+            self.init_checkpoint_path()
+        self.init_networks()
         self.init_geo_model()
     
     def __str__(self) -> str:
@@ -249,7 +250,6 @@ class Experiment(ABC):
             if train:
                 self.init_networks()
                 self.train_network()
-                self.network = None
 
             self.checkpoint_path = default_path
         else:
@@ -318,7 +318,12 @@ class Experiment(ABC):
             self.input_points = attacked_points #.to(self.dtype)
             print("...done!")
 
+    
     @abstractmethod
+    def _default_network(self) -> torch.nn.Module:
+        """Returns default network for this experiment."""
+        raise NotImplementedError
+
     def init_networks(self):
         """Initializes the value of self.network based on the string
         self.dataset_name. It must be redefined for each child based
@@ -784,10 +789,8 @@ class XORExp(Experiment):
         }
         return super().init_input_space(root, download)
 
-    def init_networks(self):
-        self.network = xor_net(non_linearity=self.nl_function)
-
-        return super().init_networks()
+    def _default_network(self) -> torch.nn.Module:
+        return xor_net(non_linearity=self.nl_function)
 
     def plot_foliation(self,
                        transverse: bool=False,
@@ -866,10 +869,8 @@ class XOR3DExp(Experiment):
         }
         return super().init_input_space(root, download)
 
-    def init_networks(self):
-        self.network = xor3d_net(non_linearity=self.nl_function)
-
-        return super().init_networks()
+    def _default_network(self) -> torch.nn.Module:
+        return xor3d_net(non_linearity=self.nl_function)
 
     def plot_foliation(self,
                        transverse: bool=True,
@@ -961,10 +962,8 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
         }
         return super().init_input_space(root, download)
 
-    def init_networks(self):
-        self.network = circle_net(non_linearity=self.nl_function, nclasses=self.nclasses)
-
-        return super().init_networks()
+    def _default_network(self) -> torch.nn.Module:
+        return circle_net(non_linearity=self.nl_function, nclasses=self.nclasses)
 
     def plot_foliation(self,
                        transverse: bool=True,
@@ -1055,13 +1054,9 @@ class MNISTExp(Experiment):
         }
         return super().init_input_space(root, download)
 
-    def init_networks(self):
+    def _default_network(self) -> torch.nn.Module:
         maxpool = (self.pool == 'maxpool')
-        self.network = mnist_medium_cnn(
-            non_linearity=self.nl_function,
-            maxpool=maxpool)
-
-        return super().init_networks()
+        return mnist_medium_cnn(non_linearity=self.nl_function, maxpool=maxpool)
 
 
 class CIFAR10Exp(Experiment):
@@ -1110,11 +1105,9 @@ class CIFAR10Exp(Experiment):
         }
         return super().init_input_space(root, download)
 
-    def init_networks(self):
+    def _default_network(self) -> torch.nn.Module:
         maxpool = (self.pool == 'maxpool')
-        self.network = cifar_medium_cnn(maxpool=maxpool)
-
-        return super().init_networks()
+        return cifar_medium_cnn(maxpool=maxpool)
 
 
 class LettersExp(Experiment):
@@ -1463,7 +1456,7 @@ def sub_experiment(experiment: Type[Experiment], subset_classes: Sequence[int]) 
         #     super().__init__(*args, **kwargs)
 
     def init_input_space(self, *args, **kwargs):
-        super(type(self), self).init_input_space(*args, **kwargs)
+        super(type(self), self).init_input_space(*args, **kwargs)  # type: ignore
         self.input_space = {
             k: torch.utils.data.Subset( # TODO: warning: has no attribute from the original dataset
                 v,
@@ -1472,20 +1465,16 @@ def sub_experiment(experiment: Type[Experiment], subset_classes: Sequence[int]) 
         }
 
 
-    def init_networks(self, *args, **kwargs):
-        super(type(self), self).init_networks(*args, **kwargs)
-        self.network = torch.nn.Sequential(self.network, SlicingLayer(indices=self.subset_classes, dim=-1))
-
-
-        
-
+    def _default_network(self, *args, **kwargs) -> torch.nn.Module:
+        original_network = super(type(self), self)._default_network(*args, **kwargs)  # type: ignore
+        return torch.nn.Sequential(original_network, SlicingLayer(indices=self.subset_classes, dim=-1))
     
     return type(f"Subset{len(subset_classes)}{experiment.__name__}",
                 (experiment, ),
                 {
                     "subset_classes": subset_classes,
                     "init_input_space": init_input_space,
-                    "init_networks": init_networks,
+                    "_default_network": _default_network,
                     "plot_foliation": NotImplemented,
                 })
 
