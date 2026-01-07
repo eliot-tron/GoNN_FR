@@ -157,8 +157,6 @@ class GeometricModel(object):
         if self.diff_method == "functorch":
             j = torch.vmap(torch.func.jacrev(self.score))(eval_point)
             if self.verbose: print(f"shape of j before reshape = {j.shape}")
-            j = j.squeeze(1)
-            if self.verbose: print(f"shape of j after reshape = {j.shape}")
         elif self.diff_method == "legacy":
             j = torch.autograd.functional.jacobian(self.score, eval_point, create_graph=create_graph) # TODO: what happens if not batched?
             if self.verbose: print(f"shape of j before reshape = {j.shape}")
@@ -195,7 +193,7 @@ class GeometricModel(object):
             torch.Tensor: tensor :math:`g_ij` with dimensions (bs, i, j).
         """
         
-        if self.task == "classification":
+        if self.task == "classification":  # Last layer must be a Softmax
             J_s = self.jac_score(eval_point, create_graph=create_graph)
             p = self.proba(eval_point)
             P = torch.diag_embed(p, dim1=1)

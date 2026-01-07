@@ -76,7 +76,7 @@ def mnist_medium_cnn(num_classes: int=10, non_linearity:nn.Module=nn.ReLU(), max
         nn.Conv2d(32, 64, 3, 1),
         deepcopy(non_linearity),
         nn.AvgPool2d(2) if not maxpool else nn.MaxPool2d(2),
-        nn.Flatten(),
+        nn.Flatten(start_dim=-3),
         nn.Linear(64 * (28 - 2 * 2) * (28 - 2 * 2) // (2**2), 128),
         deepcopy(non_linearity),
         nn.Linear(128, num_classes),
@@ -103,7 +103,8 @@ class VGG(nn.Module):
 
     def forward(self, x):
         out = self.features(x)
-        out = out.view(out.size(0), -1)
+        # out = out.view(out.size(0), -1) # causes troubles with vmap(jacrev)
+        out = out.flatten(start_dim=-3)
         out = self.classifier(out)
         return out
 
@@ -136,7 +137,7 @@ def cifar_medium_cnn_inter(num_classes: int=10, non_linearity=nn.ReLU(), maxpool
         nn.Conv2d(300, 300, 3, 1),
         deepcopy(non_linearity),
         nn.AvgPool2d(2) if not maxpool else nn.MaxPool2d(2),
-        nn.Flatten(),
+        nn.Flatten(start_dim=-3),
         nn.Linear(1200, 300),
         deepcopy(non_linearity),
         nn.Linear(300, 100),
