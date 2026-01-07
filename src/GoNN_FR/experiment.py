@@ -166,7 +166,7 @@ class Experiment(ABC):
 
     def train_network(self,
                       save_directory: Union[Path, str]=f"./checkpoint/",
-                      lr: float=0.01,
+                      lr: float=0.001, # TODO: depends on the task (1e-3 for MNIST, 1e-2 for XOR)
                       batch_size: int=50,
                       number_of_epochs: int=10,
                       ) -> None:
@@ -231,6 +231,33 @@ class Experiment(ABC):
                 torch.save(self.network.state_dict(),
                            Path(save_directory) / f"{self.dataset_name.lower()}_net_{self.non_linearity}.pt") 
                 best_correct = correct
+
+
+    def test_network(self):
+        """Print accuracy of self.network."""
+
+        val_loader = torch.utils.data.DataLoader(
+            self.input_space['val'],
+            batch_size=1,
+            shuffle=False,
+            num_workers=1,
+            pin_memory=True,
+        )
+        self.network.eval()
+        # test_loss = 0
+        correct = 0
+        with torch.no_grad():
+            for data, target in val_loader:
+                data, target = data.to(self.device).to(self.dtype), target.to(self.device)
+                output = self.network(data)
+                # test_loss += loss_fn(output, target).sum().item()
+                pred = output.argmax(dim=-1, keepdim=True)
+                # correct += pred.eq(target.view_as(pred)).sum().item()
+                correct += (pred == target.view_as(pred)).sum().item()
+
+        # test_loss /= len(val_loader.dataset)
+        print(f"\nTest set: Accuracy: {correct}/{len(val_loader.dataset)} ({100.0 * correct / len(val_loader.dataset)})")
+            
 
     def init_checkpoint_path(self):
         """Initializes the value of self.checkpoint_path based on self.dataset_name and self.non_linearity."""
