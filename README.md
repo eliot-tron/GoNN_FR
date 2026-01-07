@@ -30,6 +30,11 @@ from GoNN_FR import geometry, experiment
 [Documentation](./docs)
 
 
+## Known issues
+
+- If the studied neural network doesn't accept "single data points" as well as "batches", the use of the `functorch` mode might not work as intended, or at least be slower.
+
+
 ## Authors
 
 - [@eliot-tron](https://github.com/eliot-tron) ([website](https://halva.ynh.fr/eliot.tron)).
