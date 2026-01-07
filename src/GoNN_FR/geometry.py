@@ -55,7 +55,7 @@ class GeometricModel(object):
             p = self.network(eval_point)
         else:
             raise NotImplementedError()
-        if self.verbose: print(f"proba: {p}")
+        if self.verbose: print(f"proba max: {p.max()}")
         return p
 
     def score(
@@ -111,9 +111,17 @@ class GeometricModel(object):
             print(f"shape of output = {self.proba(eval_point).shape}")
 
         if self.diff_method == "functorch":
-            j = torch.vmap(torch.func.jacrev(self.proba))(eval_point)
-            if self.verbose: print(f"shape of j before reshape = {j.shape}")
-            j = j.squeeze(1)
+            try:
+                j = torch.vmap(torch.func.jacrev(self.proba))(eval_point)
+            except ValueError:
+                j = torch.func.jacrev(self.proba)(eval_point)
+                if self.verbose:
+                    print(f"shape of j before reshape = {j.shape}")
+                    print(f"Diagonality of j over dimensions (0,2): {j.transpose(2,1).flatten(2).sum(2)}")
+                j = j.sum(2)
+                # We sum on 2 because it is the batch dimension for dx when the output of the
+                # net is (bs, c) and because there is no interactions between batches in the derivative
+                # we can sum over this dimension to retrieve the only non zero components.
             if self.verbose: print(f"shape of j after reshape = {j.shape}")
         elif self.diff_method == "legacy":
             j = torch.autograd.functional.jacobian(self.proba, eval_point, create_graph=create_graph) # TODO: what happens if not batched?
@@ -155,7 +163,17 @@ class GeometricModel(object):
             print(f"shape of output = {self.proba(eval_point).shape}")
 
         if self.diff_method == "functorch":
-            j = torch.vmap(torch.func.jacrev(self.score))(eval_point)
+            try:
+                j = torch.vmap(torch.func.jacrev(self.score))(eval_point)
+            except ValueError:
+                j = torch.func.jacrev(self.score)(eval_point)
+                if self.verbose:
+                    print(f"shape of j before reshape = {j.shape}")
+                    print(f"Diagonality of j over dimensions (0,2): {j.transpose(2,1).flatten(2).sum(2)}")
+                j = j.sum(2)
+                # We sum on 2 because it is the batch dimension for dx when the output of the
+                # net is (bs, c) and because there is no interactions between batches in the derivative
+                # we can sum over this dimension to retrieve the only non zero components.
             if self.verbose: print(f"shape of j before reshape = {j.shape}")
         elif self.diff_method == "legacy":
             j = torch.autograd.functional.jacobian(self.score, eval_point, create_graph=create_graph) # TODO: what happens if not batched?
@@ -256,7 +274,6 @@ class GeometricModel(object):
             return first_term - second_term
 
         if self.diff_method == 'functorch':
-            # J_p = torch.vmap(torch.func.jacrev(self.proba))(eval_point) # Doesn't work because of softmax
             J_p = self.jac_proba(eval_point, create_graph=False)
             H_p = torch.vmap(torch.func.hessian(self.proba))(eval_point)
             # H_p = torch.vmap(torch.func.jacrev(self.jac_proba, argnums=0))(eval_point) # Doesn't work because of dim and conv2D
