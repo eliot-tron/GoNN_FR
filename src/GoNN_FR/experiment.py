@@ -266,20 +266,34 @@ class Experiment(ABC):
             train = False
             if not default_path.is_file():
                 train = ('y' == input(f"The file {default_path} does not exist, do you want to train the model ? y/[n]").lower())
+                load = False
+
                 if not train:
                     print(f"WARNING: No checkpoint defined, using random weights.")
                     default_path = ""
                     # raise NotImplementedError(f"No checkpoint path given for {self.dataset_name}.")
 
             else:
-                train = ('y' == input(f"The file {default_path} exists, do you want to retrain the model ? y/[n]").lower())
+                answer = input(f"The file {default_path} exists:\n" +
+                                f" 0: Load {default_path} weights (default).\n" +
+                                " 1: Retrain model.\n" +
+                                " 2: Use random weights.\n" + 
+                                "What to do? (default:0) ").lower()
+                random_weights = (answer == '2')
+                train = (answer == '1')
+                load = not (random_weights or train)
 
             if train:
+                print("Training network...")
                 self.init_networks()
                 self.train_network()
+            elif not load:
+                print("Using random weights...")
+                default_path = ""
 
             self.checkpoint_path = default_path
-        else:
+
+        else:  # TODO: clean this case.
             print(f"WARNING: self.checkpoint_path is already defined by {self.checkpoint_path}, doing nothing.")
 
     @abstractmethod
