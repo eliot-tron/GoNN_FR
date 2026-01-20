@@ -66,6 +66,7 @@ class Experiment(ABC):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 **kwargs,
                  ):
         """Initializes a new experiment with the provided parameters.
 
@@ -790,6 +791,7 @@ class XORExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
+                 **kwargs,
                  ):
         super().__init__(non_linearity,
                          dtype,
@@ -799,6 +801,7 @@ class XORExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -866,6 +869,7 @@ class XOR3DExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
+                 **kwargs,
                  ):
         super().__init__(non_linearity,
                          dtype,
@@ -875,6 +879,7 @@ class XOR3DExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -952,6 +957,7 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  nclasses: int=2,
+                 **kwargs,
                  ):
         self.nclasses = nclasses
         self.dataset_name += str(nclasses)
@@ -963,6 +969,7 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1036,11 +1043,12 @@ class MNISTExp(Experiment):
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
-                 pool: str,
                  random: bool,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 pool: str="avgpool",
+                 **kwargs,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
@@ -1051,6 +1059,7 @@ class MNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1078,11 +1087,12 @@ class CIFAR10Exp(Experiment):
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
-                 pool: str,
                  random: bool,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 pool: str="avgpool",
+                 **kwargs,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
@@ -1093,6 +1103,7 @@ class CIFAR10Exp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1125,11 +1136,12 @@ class LettersExp(Experiment):
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
-                 pool: str,
                  random: bool,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 pool: str="avgpool",
+                 **kwargs,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
@@ -1140,6 +1152,7 @@ class LettersExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1164,11 +1177,12 @@ class FashionMNISTExp(Experiment):
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
-                 pool: str,
                  random: bool,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 pool: str="avgpool",
+                 **kwargs,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
@@ -1179,6 +1193,7 @@ class FashionMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1202,11 +1217,12 @@ class KMNISTExp(Experiment):
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
-                 pool: str,
                  random: bool,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 pool: str="avgpool",
+                 **kwargs,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
@@ -1217,6 +1233,7 @@ class KMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1240,11 +1257,12 @@ class QMNISTExp(Experiment):
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
-                 pool: str,
                  random: bool,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 pool: str="avgpool",
+                 **kwargs,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
@@ -1255,6 +1273,7 @@ class QMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1278,11 +1297,12 @@ class CIFARMNISTExp(Experiment):
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
-                 pool: str,
                  random: bool,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
+                 pool: str="avgpool",
+                 **kwargs,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
@@ -1293,6 +1313,7 @@ class CIFARMNISTExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_input_space(self, root: str = 'data', download: bool = True):
@@ -1328,6 +1349,7 @@ class NoiseExp(Experiment):
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
+                 **kwargs,
                  ):
         super().__init__(non_linearity,
                          dtype,
@@ -1337,6 +1359,7 @@ class NoiseExp(Experiment):
                          input_space,
                          checkpoint_path,
                          network,
+                         **kwargs,
                          )
 
     def init_checkpoint_path(self):
