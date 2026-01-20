@@ -43,11 +43,9 @@ class Experiment(ABC):
         task: "classification" or "regression" or else.
         network: Main neural network used for the experiment.
         checkpoint_path: Path to the model checkpoint.
-        adversarial_budget: Budget allocated for adversarial attacks if used.
         dtype: Data type used for tensors.
         device: Device (CPU/GPU) on which the experiment runs.
         num_samples: Number of samples used in the experiment.
-        restrict_to_class: Specific class to restrict the experiment to.
         input_space: Input data space for the experiment.
         random: Boolean indicating if the experiment uses random data.
         geo_model: Geometric model associated with the network.
@@ -61,12 +59,10 @@ class Experiment(ABC):
 
     def __init__(self,
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
@@ -75,13 +71,10 @@ class Experiment(ABC):
 
         Args:
             non_linearity (str): Name of non-linearity used.
-            adversarial_budget (float): Budget allocated for adversarial attacks.
             dtype (torch.dtype): Data type used for tensors.
             device (torch.DeviceObjType): Device (CPU/GPU) on which the experiment runs.
             num_samples (int): Number of samples used.
             random (bool): Boolean indicating if the experiment must be randomized.
-            restrict_to_class (int, optional): Specific class to restrict the experiment to.
-                Defaults to None.
             input_space (Dict[str, datasets.VisionDataset], optional): Input data space for the experiment.
                 Defaults to None.
             checkpoint_path (str): Path to the model checkpoint.
@@ -91,11 +84,9 @@ class Experiment(ABC):
         """
         self.non_linearity = non_linearity
         self.checkpoint_path = checkpoint_path
-        self.adversarial_budget = adversarial_budget
         self.dtype = dtype
         self.device = device
         self.num_samples = num_samples
-        self.restrict_to_class = restrict_to_class
         self.input_space = input_space
         self.random = random
 
@@ -128,13 +119,13 @@ class Experiment(ABC):
         with open(saving_path, 'w') as file:
             file.write(str(self))
 
-    def get_output_dimension(self): # TODO: fix unsqueeze + find more efficient way.
+    def get_output_dimension(self) -> int: # TODO: fix unsqueeze + find more efficient way.
         return self.network(self.input_points[0].unsqueeze(0)).shape[-1]
 
-    def get_input_dimension(self):
+    def get_input_dimension(self) -> int:
         return len(self.input_points[0].flatten())
     
-    def get_number_of_classes(self):
+    def get_number_of_classes(self) -> int:
         return len(self.input_space['train'].classes)
 
     def init_geo_model(self):  # TODO: why a separate function?
@@ -312,21 +303,16 @@ class Experiment(ABC):
         :returns: None
 
         """
-        if self.input_space is not None:
-            if self.restrict_to_class is not None:
-                for input_space_train_or_val in self.input_space:
-                    restriction_indices = input_space_train_or_val.targets == self.restrict_to_class
-                    input_space_train_or_val.targets = input_space_train_or_val.targets[restriction_indices]
-                    input_space_train_or_val.data = input_space_train_or_val.data[restriction_indices]
-        elif self.dataset_name in ['Noise', 'Adversarial']:
-            raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
-        else:
-            raise NotImplementedError(f"{self.dataset_name} cannot be a base dataset yet.")
+        if self.input_space is None:
+            if self.dataset_name in ['Noise']:
+                raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
+            else:
+                raise NotImplementedError(f"{self.dataset_name} cannot be a base dataset yet.")
 
     def init_input_points(self, train:bool=True):
         """Initializes the value of self.input_point (torch.Tensor) based on 
         self.input_space, self.num_samples, self.random, and if self.dataset_name
-        is Noise if self.adversarial_budget > 0.
+        is Noise.
 
         :train: If True, get points from the training dataset,
                 else from the validation dataset.
@@ -351,13 +337,6 @@ class Experiment(ABC):
         
         if self.dataset_name == "Noise":
             self.input_points = torch.rand_like(self.input_points).to(self.device).to(self.dtype)
-        if self.adversarial_budget > 0:
-            print("Computing the adversarial attacks...")
-            adversary = AutoAttack(self.geo_model.score, norm='L2', eps=self.adversarial_budget, version='custom', attacks_to_run=['apgd-ce'], device=self.device, verbose=False)
-            labels = torch.argmax(self.geo_model.proba(self.input_points), dim=-1)
-            attacked_points = adversary.run_standard_evaluation(self.input_points.clone(), labels, bs=250)
-            self.input_points = attacked_points #.to(self.dtype)
-            print("...done!")
 
     
     @abstractmethod
@@ -383,7 +362,7 @@ class Experiment(ABC):
                 # self.network = nn.DataParallel(self.network)
 
             print(f"Network to {self.device} as {self.dtype} done")
-        elif self.dataset_name in ['Noise', 'Adversarial']:
+        elif self.dataset_name in ['Noise']:
             raise ValueError(f"{self.dataset_name} cannot have an associated network.")
         else:
             raise NotImplementedError(f"The dataset {self.dataset_name} has no associated network yet.")
@@ -447,7 +426,10 @@ class Experiment(ABC):
 
 
         if known_rank is None:
-            known_rank = min(DIM.shape[1:])
+            if self.task == "classification":
+                known_rank = self.get_output_dimension() - 1
+            else:
+                known_rank = min(DIM.shape[1:]) # FIX: shouldn't it be min(output.shape[1:])? Use self.get_output_dimension()?
         else:
             known_rank = min(known_rank, min(DIM.shape[1:]) - 1)
             
@@ -468,7 +450,9 @@ class Experiment(ABC):
                 try:
                     topk_eigenvalues = torch.lobpcg(DIM, k=known_rank+1)[0]
                     selected_eigenvalues = topk_eigenvalues.abs().sort(descending=True).values
-                except ValueError:
+                except ValueError as e:
+                    print(e)
+                    print("Using eigvalsh method for ev computation.")
                     eigenvalues = torch.linalg.eigvalsh(DIM).abs().sort(descending=True).values 
                     selected_eigenvalues = eigenvalues.abs().sort(descending=True).values[...,:known_rank + 1]
             # t2 = time.time()
@@ -799,23 +783,19 @@ class XORExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  ):
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -879,23 +859,19 @@ class XOR3DExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  ):
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -968,12 +944,10 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: int | None = None, 
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
@@ -982,12 +956,10 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
         self.nclasses = nclasses
         self.dataset_name += str(nclasses)
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1061,25 +1033,21 @@ class MNISTExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1107,25 +1075,21 @@ class CIFAR10Exp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1158,25 +1122,21 @@ class LettersExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1201,25 +1161,21 @@ class FashionMNISTExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1243,25 +1199,21 @@ class KMNISTExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1285,25 +1237,21 @@ class QMNISTExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1327,25 +1275,21 @@ class CIFARMNISTExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  pool: str,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str="",
                  network: nn.Module | None = None,
                  ):
         self.pool = pool
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1377,23 +1321,19 @@ class NoiseExp(Experiment):
 
     def __init__(self, 
                  non_linearity: str,
-                 adversarial_budget: float,
                  dtype: torch.dtype,
                  device: torch.DeviceObjType,
                  num_samples: int,
                  random: bool,
-                 restrict_to_class: int | None = None,
                  input_space: Dict[str, datasets.VisionDataset] | None = None,
                  checkpoint_path: str = "",
                  network: nn.Module | None = None,
                  ):
         super().__init__(non_linearity,
-                         adversarial_budget,
                          dtype,
                          device,
                          num_samples,
                          random,
-                         restrict_to_class,
                          input_space,
                          checkpoint_path,
                          network,
@@ -1416,60 +1356,49 @@ class NoiseExp(Experiment):
         raise ValueError(f"{self.dataset_name} cannot have an associated network.")
 
 
-class AdversarialExp(Experiment):
-
-    task = "classification"
-    dataset_name = "Adversarial"
-
-    def __init__(self, 
-                 non_linearity: str,
-                 adversarial_budget: float,
-                 dtype: torch.dtype,
-                 device: torch.DeviceObjType,
-                 num_samples: int,
-                 random: bool,
-                 restrict_to_class: int | None = None,
-                 input_space: Dict[str, datasets.VisionDataset] | None = None,
-                 checkpoint_path: str = "",
-                 network: nn.Module | None = None,
-                 ):
-        super().__init__(non_linearity,
-                         adversarial_budget,
-                         torch.float,
-                         device,
-                         num_samples,
-                         random,
-                         restrict_to_class,
-                         input_space,
-                         checkpoint_path,
-                         network.float(),
-                         )
-        if dtype != torch.float:
-            print("WARNING: Adversarial attack only implemented for float32 due to external dependences.")
-
-    def init_checkpoint_path(self):
-        raise ValueError(f"{self.dataset_name} cannot have an associated network.")
-
-    def init_input_space(self, root: str = 'data', download: bool = True):
-        raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
-
-    def init_input_points(self, train:bool=True):
-        if self.input_space is not None:
-            super().init_input_points(train=train)
-        else:
-            raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
-        # if self.adversarial_budget > 0:
-        #     print("Computing the adversarial attacks...")
-        #     adversary = AutoAttack(self.network_score.float(), norm='L2', eps=self.adversarial_budget, version='custom', attacks_to_run=['apgd-ce'], device=self.device, verbose=False)
-        #     labels = torch.argmax(self.network_score(self.input_points.float()), dim=-1)
-        #     attacked_points = adversary.run_standard_evaluation(self.input_points.clone().float(), labels, bs=250)
-        #     self.input_points = attacked_points.to(self.dtype)
-        #     print("...done!")
-        # else:
-        #     raise ValueError("Adversarial dataset but with self.adversarial_budget <= 0.")
-
-    def init_networks(self):
-        raise ValueError(f"{self.dataset_name} cannot have an associated network.")
+# class AdversarialExp(Experiment):
+#
+#     task = "classification"
+#     dataset_name = "Adversarial"
+#
+#     def __init__(self, 
+#                  non_linearity: str,
+#                  adversarial_budget: float,
+#                  dtype: torch.dtype,
+#                  device: torch.DeviceObjType,
+#                  num_samples: int,
+#                  random: bool,
+#                  input_space: Dict[str, datasets.VisionDataset] | None = None,
+#                  checkpoint_path: str = "",
+#                  network: nn.Module | None = None,
+#                  ):
+#         super().__init__(non_linearity,
+#                          adversarial_budget,
+#                          torch.float,
+#                          device,
+#                          num_samples,
+#                          random,
+#                          input_space,
+#                          checkpoint_path,
+#                          network.float(),
+#                          )
+#         if dtype != torch.float:
+#             print("WARNING: Adversarial attack only implemented for float32 due to external dependences.")
+#
+#     def init_checkpoint_path(self):
+#         raise ValueError(f"{self.dataset_name} cannot have an associated network.")
+#
+#     def init_input_space(self, root: str = 'data', download: bool = True):
+#         raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
+#
+#     def init_input_points(self, train:bool=True):
+#         if self.input_space is not None:
+#             super().init_input_points(train=train)
+#         else:
+#             raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
+#
+#     def init_networks(self):
+#         raise ValueError(f"{self.dataset_name} cannot have an associated network.")
 
 
 def sub_experiment(experiment: Type[Experiment], subset_classes: Sequence[int]) -> Type[Experiment]:
@@ -1510,7 +1439,7 @@ def sub_experiment(experiment: Type[Experiment], subset_classes: Sequence[int]) 
         original_network = super(type(self), self)._default_network(*args, **kwargs)  # type: ignore
         return torch.nn.Sequential(original_network, SlicingLayer(indices=self.subset_classes, dim=-1))
     
-    return type(f"Subset{len(subset_classes)}{experiment.__name__}",
+    return type(f"Subset{"-".join([str(c) for c in subset_classes])}{experiment.__name__}",
                 (experiment, ),
                 {
                     "subset_classes": subset_classes,
@@ -1520,6 +1449,38 @@ def sub_experiment(experiment: Type[Experiment], subset_classes: Sequence[int]) 
                 })
 
 
+# TODO: Type[Experiment] or Experiment as input?
+def adversarial_experiment(experiment:Type[Experiment], adversarial_budget:float=0.1) -> Type[Experiment]:
+    """Return a new class which is a variation of an experiment class but with
+       adversarial perturbations of the original dataset.
+    
+    WARNING: only modify self.input_points, and not self.input_space.
+
+    Args:
+        experiment (Type[Experiment]): Base experiment.
+
+    Returns:
+        Type[Experiment]: Experiment with data that are perturbed versions of the original ones.
+    """
+
+    def init_input_points(self, *args, **kwargs):
+        super(type(self), self).init_input_points(*args, **kwargs)  # type: ignore
+        print("Computing the adversarial attacks...")
+        if self.dtype != torch.float:
+            print("WARNING: Adversarial attack only implemented for float32 due to external dependences.")
+        self.network = self.network.float()
+        adversary = AutoAttack(self.geo_model.score, norm='L2', eps=self.adversarial_budget, version='custom', attacks_to_run=['apgd-ce'], device=self.device, verbose=False)
+        labels = torch.argmax(self.geo_model.proba(self.input_points), dim=-1)
+        attacked_points = adversary.run_standard_evaluation(self.input_points.clone(), labels, bs=250)
+        self.input_points = attacked_points #.to(self.dtype)
+        print("...done!")
+        self.network = self.network.to(self.dtype)
+
+    return type(f"Adversarial{experiment.__name__}",
+                (experiment, ),
+                {
+                    "init_input_points": init_input_points,
+                })
 
 
 implemented_experiment_dict = {
@@ -1533,7 +1494,6 @@ implemented_experiment_dict = {
     "CIFARMNIST": CIFARMNISTExp,
     "FashionMNIST": FashionMNISTExp,
     "Noise": NoiseExp,
-    "Adversarial": AdversarialExp,
     "Circle2": partial(CircleExp, nclasses=2),
     "Circle3": partial(CircleExp, nclasses=3),
     "Circle6": partial(CircleExp, nclasses=6),
