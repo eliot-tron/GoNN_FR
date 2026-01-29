@@ -103,7 +103,7 @@ class Experiment(ABC):
         else:
             self.network = network 
         if self.checkpoint_path == "":
-            self.init_checkpoint_path()
+            self.init_checkpoint_path(kwargs.get("_default_answer"))
         self.init_networks()
         self.init_geo_model()
     
@@ -284,13 +284,22 @@ class Experiment(ABC):
         print(f"\nTest set: Accuracy: {correct}/{len(val_loader.dataset)} ({100.0 * correct / len(val_loader.dataset)})")
             
 
-    def init_checkpoint_path(self):
-        """Initializes the value of self.checkpoint_path based on self.dataset_name and self.non_linearity."""
+    def init_checkpoint_path(self, _default_answer:str|None=None):
+        """Initializes the value of self.checkpoint_path based on self.dataset_name and self.non_linearity.
+        
+        Args:
+            default_answer (str): default answer to skip asking.
+                (default=None)
+        """
         if self.checkpoint_path == "":
             default_path = Path(f"./checkpoint/{self.dataset_name.lower()}_net_{self.non_linearity}.pt")
             train = False
             if not default_path.is_file():
-                train = ('y' == input(f"The file {default_path} does not exist, do you want to train the model ? y/[n]").lower())
+                if _default_answer is not None:
+                    answer = _default_answer
+                else:
+                    answer = input(f"The file {default_path} does not exist, do you want to train the model ? y/[n]").lower()
+                train = ('y' == answer)
                 load = False
 
                 if not train:
@@ -299,11 +308,14 @@ class Experiment(ABC):
                     # raise NotImplementedError(f"No checkpoint path given for {self.dataset_name}.")
 
             else:
-                answer = input(f"The file {default_path} exists:\n" +
-                                f" 0: Load {default_path} weights (default).\n" +
-                                " 1: Retrain model.\n" +
-                                " 2: Use random weights.\n" + 
-                                "What to do? (default:0) ").lower()
+                if _default_answer is not None:
+                    answer = _default_answer
+                else:
+                    answer = input(f"The file {default_path} exists:\n" +
+                                    f" 0: Load {default_path} weights (default).\n" +
+                                    " 1: Retrain model.\n" +
+                                    " 2: Use random weights.\n" + 
+                                    "What to do? (default:0) ").lower()
                 random_weights = (answer == '2')
                 train = (answer == '1')
                 load = not (random_weights or train)
