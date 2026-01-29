@@ -129,6 +129,39 @@ class Experiment(ABC):
     def get_number_of_classes(self) -> int:
         return len(self.input_space['train'].classes)
 
+    def sample_input_points(self, 
+                            nsample:int=100,
+                            random:bool=True,
+                            train:bool=False) -> list[torch.Tensor]:
+        """Return [nsample] points and their label of the input space (val or train).
+
+        Args:
+            nsample (int): number of samples.
+            random (bool): if the dataset should be shuffle before sampling.
+                (default: True)
+            train (bool): if the train set or the validation set is used.
+                (default: False)
+
+        Returns:
+            list[torch.Tensor]: [points, labels]
+        """
+        
+        train_or_val = "train" if train else "val"
+        if self.input_space is None:
+            raise ValueError(f"Initialize input_space first before using sample_input_points.")
+        space_loader = torch.utils.data.DataLoader(
+            dataset=self.input_space[train_or_val],
+            batch_size=nsample,
+            shuffle=random,
+        )
+        
+        points, labels = next(iter(space_loader))
+
+        points = points.to(self.device).to(self.dtype)
+        labels = labels.to(self.device)
+        return [points, labels]
+
+
     def init_geo_model(self):  # TODO: why a separate function?
         """ Initialize self.geo_model with the associated GeometricModel.
 
