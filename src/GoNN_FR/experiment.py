@@ -822,10 +822,80 @@ class Experiment(ABC):
             # plt.savefig(saving_path, transparent=True, dpi=None)
 
 
-class XORExp(Experiment):
+class Experiment2D(Experiment): # TEST: test Experiment2D methods.
+
+    task = NotImplemented
+    dataset_name = ""
+    domain = {"x": NotImplemented, "y": NotImplemented}
+
+    def plot_data_points(self, nsample:int=1000):
+        """Plots the data points."""
+
+        input_space_train = self.input_space['train']
+        if nsample > len(input_space_train):
+            print(f"Warging: trying to plot more points than the training space contains {nsample} > {len(input_space_train)}, the value of nsample will be capped.")
+            nsample = len(input_space_train)
+        loader = torch.utils.data.DataLoader(input_space_train, batch_size=nsample, shuffle=True)
+        data_points, data_classes = next(iter(loader))
+
+        print("...plotting the data points...")
+        nclasses = int(data_classes.max(0))
+        cmap = cm.get_cmap('rainbow', nclasses)  
+        # plt.colorbar(ticks=range(self.nclasses + 2))
+        scamap = cm.ScalarMappable(norm=colors.Normalize(vmin=-0.5, vmax=nclasses-0.5), cmap=cmap)
+        plt.colorbar(scamap, ticks=range(nclasses))
+
+        for p, c in zip(data_points, data_classes):
+            plt.plot(p[0], p[1], "o", color=scamap.to_rgba(c))
+
+        plt.xlim(self.domain["x"])
+        plt.ylim(self.domain["y"])
+
+   
+    def plot_foliation(self,
+                       transverse: bool=False,
+                       nleaves: int | None = None,
+                       ) -> None:
+        """Plots the kernel / transverse foliation associated to
+        the Fisher Information Matrix.
+
+        :transverse: (bool) if True, plot the transverse foliation, else plot the kernel foliation.
+        :returns: None
+
+        """
+        if nleaves is None:
+            nleaves = self.num_samples
+
+        init_points = torch.distributions.uniform.Uniform(
+                low=torch.tensor([self.domain["x"][0], self.domain["y"][0]]),
+                high=torch.tensor([self.domain["x"][1], self.domain["y"][1]]),
+            ).sample((nleaves, ))
+
+        init_points = init_points.to(self.device).to(self.dtype)
+        #  scale = 0.1
+        #  xs = torch.arange(0, 1.5 + scale, scale, dtype=self.dtype, device=self.device)
+        #  init_points = torch.cartesian_prod(xs, xs)
+        print("Plotting the leaves...")
+        leaves = self.batch_compute_leaf(init_points, transverse=transverse).detach()
+
+        for leaf in tqdm(leaves.cpu()):
+
+            if not transverse:
+                pred_on_leaf = self.geo_model.proba(leaf)
+                if not pred_on_leaf.allclose(pred_on_leaf.mean(0, keepdim=True), rtol=0.001):
+                    print(f"Leaf not computed correctly, std dev:{pred_on_leaf.std(0).item()}")
+
+            plt.plot(leaf[:, 0], leaf[:, 1], color='blue', linewidth=0.2, zorder=1)
+
+        plt.xlim(self.domain["x"])
+        plt.ylim(self.domain["y"])
+
+
+class XORExp(Experiment2D):
 
     task = "classification"
     dataset_name = "XOR"
+    domain = {"x": [-0., 1.], "y": [-0., 1.]}
 
     def __init__(self, 
                  non_linearity: str,
@@ -860,44 +930,6 @@ class XORExp(Experiment):
 
     def _default_network(self) -> torch.nn.Module:
         return xor_net(non_linearity=self.nl_function)
-
-    def plot_foliation(self,
-                       transverse: bool=False,
-                       nleaves: int | None = None,
-                       ) -> None:
-        """Plots the kernel / transverse foliation associated to
-        the Fisher Information Matrix.
-
-        :transverse: (bool) if True, plot the transverse foliation, else plot the kernel foliation.
-        :returns: None
-
-        """
-        if nleaves is None:
-            nleaves = self.num_samples
-        input_space_train = self.input_space['train']
-        indices = torch.randperm(len(input_space_train))[:nleaves]
-        init_points = torch.stack([input_space_train[idx][0] for idx in indices])
-        init_points = init_points.to(self.device).to(self.dtype)
-        #  scale = 0.1
-        #  xs = torch.arange(0, 1.5 + scale, scale, dtype=self.dtype, device=self.device)
-        #  init_points = torch.cartesian_prod(xs, xs)
-        print("Plotting the leaves...")
-        leaves = self.batch_compute_leaf(init_points, transverse=transverse).detach()
-
-        for leaf in tqdm(leaves.cpu()):
-
-            if not transverse:
-                pred_on_leaf = self.geo_model.proba(leaf)
-                if not pred_on_leaf.allclose(pred_on_leaf.mean(0, keepdim=True), rtol=0.001):
-                    print(f"Leaf not computed correctly, std dev:{(pred_on_leaf - pred_on_leaf.mean(0, keepdim=True)).pow(2).mean().sqrt()}")
-
-            plt.plot(leaf[:, 0], leaf[:, 1], color='blue', linewidth=0.2, zorder=1)
-
-        if self.dataset_name == "XOR":
-            plt.plot([0, 1], [0, 1], "ro", zorder=3)
-            plt.plot([0, 1], [1, 0], "go", zorder=3)
-        plt.xlim([-0.1, 1.1])
-        plt.ylim([-0.1, 1.1])
 
 
 class XOR3DExp(Experiment):
@@ -987,10 +1019,11 @@ class XOR3DExp(Experiment):
         #  plt.show()
 
 
-class CircleExp(Experiment): # TODO: put nclasses in the dataset name
+class CircleExp(Experiment2D): # TODO: put nclasses in the dataset name
 
     task = "classification"
     dataset_name = "Circle"
+    domain = {"x": [-1.2, 1.2], "y": [-1.2, 1.2]}
 
     def __init__(self, 
                  non_linearity: str,
@@ -1029,53 +1062,6 @@ class CircleExp(Experiment): # TODO: put nclasses in the dataset name
 
     def _default_network(self) -> torch.nn.Module:
         return circle_net(non_linearity=self.nl_function, nclasses=self.nclasses)
-
-    def plot_foliation(self,
-                       transverse: bool=True,
-                       nleaves: int | None = None,
-                       ) -> None:
-        """Plots the kernel / transverse foliation associated to
-        the Fisher Information Matrix.
-
-        :transverse: (bool) if True, plot the transverse foliation, else plot the kernel foliation.
-        :returns: None
-
-        """
-        if nleaves is None:
-            nleaves = self.num_samples
-        input_space_train = self.input_space['train']
-        # indices = torch.randperm(len(input_space_train))[:nleaves]
-        indices = torch.linspace(0, len(input_space_train), nleaves + 1).int()[:-1]
-        data_points = torch.stack([input_space_train[idx][0] for idx in indices])
-        data_classes = torch.stack([input_space_train[idx][1] for idx in indices])
-        init_points = torch.rand_like(data_points) * 2 - 1
-        # init_points = data_points
-        init_points = init_points.to(self.device).to(self.dtype)
-        #  scale = 0.1
-        #  xs = torch.arange(0, 1.5 + scale, scale, dtype=self.dtype, device=self.device)
-        #  init_points = torch.cartesian_prod(xs, xs)
-        print("Plotting the leaves...")
-        leaves = self.batch_compute_leaf(init_points, transverse=transverse).detach()
-
-        for leaf in tqdm(leaves.cpu()):
-
-            if not transverse:
-                pred_on_leaf = self.geo_model.proba(leaf)
-                if not pred_on_leaf.allclose(pred_on_leaf.mean(0, keepdim=True), rtol=0.001):
-                    print(f"Leaf not computed correctly, std dev:{(pred_on_leaf - pred_on_leaf.mean(0, keepdim=True)).pow(2).mean().sqrt()}")
-
-            plt.plot(leaf[:, 0], leaf[:, 1], color='blue', linewidth=0.2, zorder=1)
-
-        print("...plotting the data points...")
-        cmap = cm.get_cmap('jet', self.nclasses)  
-        # plt.colorbar(ticks=range(self.nclasses + 2))
-        scamap = cm.ScalarMappable(norm=colors.Normalize(vmin=-0.5, vmax=self.nclasses-0.5), cmap=cmap)
-        # plt.colorbar(scamap, ticks=range(self.nclasses))
-        for p, c in zip(data_points, data_classes):
-            plt.plot(p[0], p[1], "o", color=scamap.to_rgba(c))
-
-        plt.xlim([-1.2, 1.2])
-        plt.ylim([-1.2, 1.2])
 
 
 class MNISTExp(Experiment):
@@ -1513,7 +1499,7 @@ def sub_experiment(experiment: Type[Experiment], subset_classes: Sequence[int]) 
                     "subset_classes": subset_classes,
                     "init_input_space": init_input_space,
                     "_default_network": _default_network,
-                    "plot_foliation": NotImplemented,
+                    # "plot_foliation": NotImplemented, # TODO: should we leave it?
                 })
 
 
