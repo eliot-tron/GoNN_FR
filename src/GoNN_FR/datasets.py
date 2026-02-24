@@ -6,7 +6,7 @@ from torch.utils import data
 class XorDataset(data.Dataset):
     """Create dataset for Xor learning."""
 
-    def __init__(self, nsample=1000, test=False, discrete=False, range=(0,1)):
+    def __init__(self, nsample=1000, test=False, discrete=False, range=(0,1), seed:int=0):
         """Init the dataset
         :returns: TODO
 
@@ -15,6 +15,12 @@ class XorDataset(data.Dataset):
         self.nsample = nsample
         self.test = test
         self.classes = ["0", "1"]
+        self.seed = seed
+        self._generator = torch.Generator()
+        if self.test:
+            self._generator.manual_seed(self.seed+1)
+        else:
+            self._generator.manual_seed(self.seed)
         # self.data = torch.rand(self.nsample, 2)
         a, b = range
         if test:
@@ -24,13 +30,15 @@ class XorDataset(data.Dataset):
                 self.nsample = 4
             else:
                 self.nsample //= 10
-                self.data = torch.rand((self.nsample, 2)) * (b - a) + a
+                self.data = torch.rand((self.nsample, 2), generator=self._generator) * (b - a) + a
         else:
             if discrete:
                 self.data = torch.bernoulli(
-                    torch.ones((self.nsample, 2)) * 0.5)
+                    torch.ones((self.nsample, 2)) * 0.5,
+                    generator=self._generator,
+                )
             else:
-                self.data = torch.rand((self.nsample, 2)) * (b - a) + a
+                self.data = torch.rand((self.nsample, 2), generator=self._generator) * (b - a) + a
         self.targets = torch.logical_xor(torch.round(self.data)[...,0], torch.round(self.data)[...,1]).long()
 
     def __getitem__(self, index):
@@ -47,7 +55,7 @@ class XorDataset(data.Dataset):
 class OrDataset(data.Dataset):
     """Create dataset for Or learning."""
 
-    def __init__(self, nsample=1000, test=False):
+    def __init__(self, nsample=1000, test=False, seed:int=0):
         """Init the dataset
         :returns: TODO
 
@@ -56,13 +64,21 @@ class OrDataset(data.Dataset):
         self.nsample = nsample
         self.test = test
         self.classes = ["0", "1"]
+        self.seed = seed
+        self._generator = torch.Generator()
+        if self.test:
+            self._generator.manual_seed(self.seed+1)
+        else:
+            self._generator.manual_seed(self.seed)
         # self.data = torch.rand(self.nsample, 2)
         if test:
             self.data = torch.tensor([[1, 1], [1, 0], [0, 1], [0, 0]], dtype=torch.float)
             self.nsample = 4
         else:
             self.data = torch.bernoulli(
-                torch.ones((self.nsample, 2)) * 0.5)
+                torch.ones((self.nsample, 2)) * 0.5,
+                generator=self._generator,
+            )
         # self.targets = torch.logical_or(*torch.round(self.data)).type(torch.float)
         self.targets = torch.logical_or(torch.round(self.data)[...,0], torch.round(self.data)[...,1]).long()
 
@@ -82,7 +98,7 @@ class OrDataset(data.Dataset):
 class Xor3dDataset(data.Dataset):
     """Create dataset for 3D Xor learning."""
 
-    def __init__(self, nsample=1000, test=False, discrete=True, range=(0,1)):
+    def __init__(self, nsample=1000, test=False, discrete=True, range=(0,1), seed:int=0):
         """Init the dataset
         :returns: TODO
 
@@ -91,6 +107,12 @@ class Xor3dDataset(data.Dataset):
         self.nsample = nsample
         self.test = test
         # self.input_vars = torch.rand(self.nsample, 2)
+        self.seed = seed
+        self._generator = torch.Generator()
+        if self.test:
+            self._generator.manual_seed(self.seed+1)
+        else:
+            self._generator.manual_seed(self.seed)
         a, b = range
         if test:
             if discrete:
@@ -100,13 +122,15 @@ class Xor3dDataset(data.Dataset):
                 self.nsample = len(self.input_vars)
             else:
                 self.nsample //= 10
-                self.input_vars = torch.rand((self.nsample, 3)) * (b - a) + a
+                self.input_vars = torch.rand((self.nsample, 3), generator=self._generator) * (b - a) + a
         else:
             if discrete:
                 self.input_vars = torch.bernoulli(
-                    torch.ones((self.nsample, 3)) * 0.5)
+                    torch.ones((self.nsample, 3)) * 0.5,
+                    generator=self._generator,
+                )
             else:
-                self.input_vars = torch.rand((self.nsample, 3)) * (b - a) + a
+                self.input_vars = torch.rand((self.nsample, 3), generator=self._generator) * (b - a) + a
 
     def __getitem__(self, index):
         """Get a data point."""
@@ -125,7 +149,7 @@ class CircleDataset(data.Dataset):
     """Circle dataset with n classes."""
     
     
-    def __init__(self, nsample=1000, test=False, nclasses=2, noise=False):
+    def __init__(self, nsample=1000, test=False, nclasses=2, noise=False, seed:int=0):
         """Init the dataset with [nclasses] classes."""
         
         data.Dataset.__init__(self)
@@ -134,9 +158,15 @@ class CircleDataset(data.Dataset):
         self.test = test
         self.nclasses = nclasses
         self.classes = [str(i) for i in range(nclasses)]
+        self.seed = seed
+        self._generator = torch.Generator()
+        if self.test:
+            self._generator.manual_seed(self.seed+1)
+        else:
+            self._generator.manual_seed(self.seed)
         # if test:
         #     self.nsample //= 10
-        t = [(torch.rand((self.nsample // nclasses)) + k) / nclasses for k in range(nclasses)]
+        t = [(torch.rand((self.nsample // nclasses), generator=self._generator) + k) / nclasses for k in range(nclasses)]
         self.data = torch.cat([
             torch.stack(
                 (torch.cos(2 * torch.pi * t_k),
@@ -146,7 +176,7 @@ class CircleDataset(data.Dataset):
 
         if noise:
             for i, p in enumerate(self.data):
-                self.data[i] = p * (torch.randn(1) * 0.01 + 1)
+                self.data[i] = p * (torch.randn(1, generator=self._generator) * 0.01 + 1)
 
         self.targets = torch.arange(0, self.nsample) // (self.nsample // self.nclasses)
         self.targets = self.targets.long()
