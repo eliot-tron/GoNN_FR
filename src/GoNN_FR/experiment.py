@@ -97,14 +97,15 @@ class Experiment(ABC):
         self.init_nl_function()
         if self.input_space is None:
             self.init_input_space()
-        self.init_input_points()
+        self.init_input_points(train=False)
         if network is None:
             self.network = self._default_network()
         else:
             self.network = network 
         if self.checkpoint_path == "":
             self.init_checkpoint_path(kwargs.get("_default_answer"))
-        self.init_networks()
+        if self.dataset_name not in ["Noise"]:
+            self.init_networks()
         self.init_geo_model()
     
     def __str__(self) -> str:
@@ -355,7 +356,7 @@ class Experiment(ABC):
             else:
                 raise NotImplementedError(f"{self.dataset_name} cannot be a base dataset yet.")
 
-    def init_input_points(self, train:bool=True):
+    def init_input_points(self, train:bool=False):
         """Initializes the value of self.input_point (torch.Tensor) based on 
         self.input_space, self.num_samples, self.random, and if self.dataset_name
         is Noise.
@@ -450,7 +451,8 @@ class Experiment(ABC):
                                showmeans=True
                                )
         return boxplot
-
+    
+    @torch.no_grad()
     def plot_FIM_eigenvalues(
         self,
         axes,
@@ -466,43 +468,53 @@ class Experiment(ABC):
         if not path.isdir(output_dir):
             makedirs(output_dir)
        
-        DIM = self.geo_model.DIM(self.input_points)
+        ds = torch.utils.data.TensorDataset(self.input_points, torch.zeros(len(self.input_points)))  # TODO: remove input_points
 
-        number_of_batch = DIM.shape[0]
+        dl = torch.utils.data.DataLoader(ds, batch_size=500, shuffle=False)
+        # DIM = torch.empty((0))
+        selected_eigenvalues = []
+        for inputs_batch, _ in tqdm(dl):
+            DIM = self.geo_model.DIM(inputs_batch)
+            # DIM = torch.cat((DIM, DIM_batch), dim=0)
+        # else:
+        #     DIM = self.geo_model.DIM(self.input_points)
 
 
-        if known_rank is None:
-            if self.task == "classification":
-                known_rank = self.get_output_dimension() - 1
+            if known_rank is None:
+                if self.task == "classification":
+                    known_rank = self.get_output_dimension() - 1
+                else:
+                    known_rank = min(DIM.shape[1:]) # FIX: shouldn't it be min(output.shape[1:])? Use self.get_output_dimension()?
             else:
-                known_rank = min(DIM.shape[1:]) # FIX: shouldn't it be min(output.shape[1:])? Use self.get_output_dimension()?
-        else:
-            known_rank = min(known_rank, min(DIM.shape[1:]) - 1)
-            
-        if face_color is None:
-            face_color = 'white'
+                known_rank = min(known_rank, min(DIM.shape[1:]) - 1)
+                
+            if face_color is None:
+                face_color = 'white'
 
-        if positions is None:
-            positions = range(known_rank + 1)
+            if positions is None:
+                positions = range(known_rank + 1)
 
-        # TODO: implement a faster computation of the topk eigenvalues <15-04-24> #
-        if singular_values:
-            eigenvalues = torch.linalg.svdvals(DIM)
-        else:
-            with torch.no_grad():
+            # TODO: implement a faster computation of the topk eigenvalues <15-04-24> #
+            if singular_values:
+                eigenvalues = torch.linalg.svdvals(DIM)
+                selected_eigenvalues_batch = eigenvalues.abs().sort(descending=True).values[...,:known_rank + 1]
+            else:
                 # t0 = time.time()
                 # eigenvalues = torch.linalg.eigvalsh(DIM) 
                 # t1 = time.time()
                 try:
                     topk_eigenvalues = torch.lobpcg(DIM, k=known_rank+1)[0]
-                    selected_eigenvalues = topk_eigenvalues.abs().sort(descending=True).values
+                    selected_eigenvalues_batch = topk_eigenvalues.abs().sort(descending=True).values
                 except ValueError as e:
                     print(e)
                     print("Using eigvalsh method for ev computation.")
                     eigenvalues = torch.linalg.eigvalsh(DIM).abs().sort(descending=True).values 
-                    selected_eigenvalues = eigenvalues.abs().sort(descending=True).values[...,:known_rank + 1]
-            # t2 = time.time()
-            # print(f"All: {t1-t0}s, topk: {t2-t1}s.")
+                    selected_eigenvalues_batch = eigenvalues.abs().sort(descending=True).values[...,:known_rank + 1]
+                # t2 = time.time()
+                # print(f"All: {t1-t0}s, topk: {t2-t1}s.")
+            selected_eigenvalues.append(selected_eigenvalues_batch)
+
+        selected_eigenvalues = torch.cat(selected_eigenvalues, dim=0)
 
         # selected_eigenvalues = eigenvalues.abs().sort(descending=True).values[...,:known_rank + 1]
         # print(f"All close: {torch.allclose(topk_eigenvalues, selected_eigenvalues[...,:known_rank])}")
@@ -1197,6 +1209,10 @@ class LettersExp(Experiment):
         }
         return super().init_input_space(root, download)
 
+    def _default_network(self) -> torch.nn.Module:
+        maxpool = (self.pool == 'maxpool')
+        return mnist_medium_cnn(non_linearity=self.nl_function, maxpool=maxpool)
+
 
 class FashionMNISTExp(Experiment):
 
@@ -1237,6 +1253,9 @@ class FashionMNISTExp(Experiment):
         }
         return super().init_input_space(root, download)
 
+    def _default_network(self) -> torch.nn.Module:
+        maxpool = (self.pool == 'maxpool')
+        return mnist_medium_cnn(non_linearity=self.nl_function, maxpool=maxpool)
 
 class KMNISTExp(Experiment):
 
@@ -1277,6 +1296,9 @@ class KMNISTExp(Experiment):
         }
         return super().init_input_space(root, download)
 
+    def _default_network(self) -> torch.nn.Module:
+        maxpool = (self.pool == 'maxpool')
+        return mnist_medium_cnn(non_linearity=self.nl_function, maxpool=maxpool)
 
 class QMNISTExp(Experiment):
 
@@ -1317,6 +1339,9 @@ class QMNISTExp(Experiment):
         }
         return super().init_input_space(root, download)
 
+    def _default_network(self) -> torch.nn.Module:
+        maxpool = (self.pool == 'maxpool')
+        return mnist_medium_cnn(non_linearity=self.nl_function, maxpool=maxpool)
 
 class CIFARMNISTExp(Experiment):
 
@@ -1364,6 +1389,10 @@ class CIFARMNISTExp(Experiment):
         }
         return super().init_input_space(root, download)
 
+    def _default_network(self) -> torch.nn.Module:
+        maxpool = (self.pool == 'maxpool')
+        return mnist_medium_cnn(non_linearity=self.nl_function, maxpool=maxpool)
+
 # TODO: what to do with Noise and Adversarial? function ? class ? how to do not-base-experiments ? Remove adversarial_budget and Noise/Adversarial from dataset_name
 
 class NoiseExp(Experiment):
@@ -1393,8 +1422,9 @@ class NoiseExp(Experiment):
                          **kwargs,
                          )
 
-    def init_checkpoint_path(self):
-        raise ValueError(f"{self.dataset_name} cannot have an associated network.")
+    def init_checkpoint_path(self, *args, **kwargs,):
+        print(f"{self.dataset_name} cannot have an associated network, doing nothing.")
+        # raise ValueError(f"{self.dataset_name} cannot have an associated network.")
 
     def init_input_space(self, root: str = 'data', download: bool = True):
         raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
@@ -1407,6 +1437,10 @@ class NoiseExp(Experiment):
             raise ValueError(f"{self.dataset_name} cannot be a base dataset.")
 
     def init_networks(self):
+        print(f"{self.dataset_name} cannot have an associated network, doing nothing.")
+        # raise ValueError(f"{self.dataset_name} cannot have an associated network.")
+
+    def _default_network(self):
         raise ValueError(f"{self.dataset_name} cannot have an associated network.")
 
 
